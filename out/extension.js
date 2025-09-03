@@ -11,6 +11,7 @@ const vscode = require("vscode");
 const logger_1 = require("./utils/logger");
 const boardManager_1 = require("./managers/boardManager");
 const configurationManager_1 = require("./utils/configurationManager");
+const cardStorage_1 = require("./storage/cardStorage");
 // Global logger instance
 const logger = new logger_1.Logger();
 /**
@@ -68,6 +69,8 @@ async function createKanbanBoardWebview(context, boardName) {
     const logger = new logger_1.Logger();
     const configManager = new configurationManager_1.ConfigurationManager();
     const boardManager = new boardManager_1.BoardManager(context, configManager, logger);
+    // Initialize card storage with Microsoft patterns
+    const cardStorage = (0, cardStorage_1.createCardStorage)(context, logger);
     // Initialize workspace
     await boardManager.initializeWorkspace();
     // Try to load existing board or create a new one
@@ -105,13 +108,13 @@ async function createKanbanBoardWebview(context, boardName) {
     panel.webview.onDidReceiveMessage(message => {
         switch (message.command) {
             case 'addCard':
-                handleAddCard(panel, message.column);
+                handleAddCard(panel, message.column, cardStorage);
                 break;
             case 'moveCard':
-                handleMoveCard(message.cardId, message.targetColumn);
+                handleMoveCard(message.cardId, message.targetColumn, cardStorage);
                 break;
             case 'deleteCard':
-                handleDeleteCard(panel, message.cardId);
+                handleDeleteCard(panel, message.cardId, cardStorage);
                 break;
             case 'renameBoard':
                 handleRenameBoard(panel, message.currentName);
@@ -467,41 +470,91 @@ function getKanbanBoardHTML(board, webview, nonce, scriptUri) {
 </html>`;
 }
 // Message handlers for webview communication
-function handleAddCard(panel, columnId) {
-    // Prompt user for card text
-    vscode.window.showInputBox({
-        prompt: 'Enter card title:',
-        placeHolder: 'Enter your task or idea'
-    }).then(cardText => {
+async function handleAddCard(panel, columnId, cardStorage) {
+    try {
+        // Prompt user for card text
+        const cardText = await vscode.window.showInputBox({
+            prompt: 'Enter card title:',
+            placeHolder: 'Enter your task or idea'
+        });
         if (cardText && cardText.trim()) {
-            // Generate unique card ID
-            const cardId = `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            // Send message to webview to add the card
-            panel.webview.postMessage({
-                command: 'cardAdded',
-                card: {
-                    id: cardId,
-                    title: cardText.trim(),
-                    columnId: columnId
-                },
-                column: columnId
-            });
-            logger.info(`Added card "${cardText}" to column ${columnId}`);
+            // Create card using our robust storage system
+            const createOptions = {
+                title: cardText.trim(),
+                columnId: columnId
+            };
+            const result = await cardStorage.createCard(createOptions);
+            if (result.success && result.data) {
+                // Send message to webview to add the card
+                panel.webview.postMessage({
+                    command: 'cardAdded',
+                    card: {
+                        id: result.data.id,
+                        title: result.data.title,
+                        description: result.data.description || '',
+                        columnId: result.data.columnId
+                    },
+                    column: columnId
+                });
+                logger.info(`Added card "${cardText}" to column ${columnId} with ID ${result.data.id}`);
+                vscode.window.showInformationMessage(`Card "${cardText}" added successfully!`);
+            }
+            else {
+                // Handle storage error gracefully
+                logger.error(`Failed to create card: ${result.error}`);
+                vscode.window.showErrorMessage(`Failed to create card: ${result.error}`);
+            }
         }
-    });
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Error in handleAddCard: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Failed to add card: ${errorMessage}`);
+    }
 }
-function handleMoveCard(cardId, targetColumn) {
-    logger.info(`Moving card ${cardId} to ${targetColumn}`);
-    // TODO: Update persistent storage when implemented
+async function handleMoveCard(cardId, targetColumn, cardStorage) {
+    try {
+        logger.info(`Moving card ${cardId} to ${targetColumn}`);
+        // Update card's column using storage system
+        const result = await cardStorage.updateCard(cardId, { columnId: targetColumn });
+        if (result.success) {
+            logger.info(`Successfully moved card ${cardId} to column ${targetColumn}`);
+        }
+        else {
+            logger.error(`Failed to move card ${cardId}: ${result.error}`);
+            vscode.window.showWarningMessage(`Failed to save card move: ${result.error}`);
+        }
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Error moving card ${cardId}: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Failed to move card: ${errorMessage}`);
+    }
 }
-function handleDeleteCard(panel, cardId) {
-    logger.info(`Deleting card ${cardId}`);
-    // Send message to webview to remove the card
-    panel.webview.postMessage({
-        command: 'cardDeleted',
-        cardId: cardId
-    });
-    // TODO: Remove from persistent storage when implemented
+async function handleDeleteCard(panel, cardId, cardStorage) {
+    try {
+        logger.info(`Deleting card ${cardId}`);
+        // Delete from storage first
+        const result = await cardStorage.deleteCard(cardId);
+        if (result.success) {
+            // Send message to webview to remove the card
+            panel.webview.postMessage({
+                command: 'cardDeleted',
+                cardId: cardId
+            });
+            logger.info(`Successfully deleted card ${cardId}`);
+            vscode.window.showInformationMessage('Card deleted successfully');
+        }
+        else {
+            logger.error(`Failed to delete card ${cardId}: ${result.error}`);
+            vscode.window.showErrorMessage(`Failed to delete card: ${result.error}`);
+        }
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Error deleting card ${cardId}: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Failed to delete card: ${errorMessage}`);
+    }
 }
 function handleRenameBoard(panel, currentName) {
     // Prompt user for new board name
