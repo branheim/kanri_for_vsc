@@ -13,6 +13,18 @@ import { Logger } from './utils/logger';
 const logger = new Logger();
 
 /**
+ * Generate a nonce for script security (Microsoft's pattern)
+ */
+function getNonce() {
+    let text = '';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < 32; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}
+
+/**
  * Extension activation - called when VS Code loads the extension
  */
 export function activate(context: vscode.ExtensionContext) {
@@ -53,38 +65,50 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 /**
- * Creates and displays a visual Kanban board using VS Code webview
+ * Creates and displays a visual Kanban board using Microsoft's proven webview pattern
+ * Uses external JavaScript files, proper CSP, and nonce-based security
  */
 function createKanbanBoardWebview(context: vscode.ExtensionContext, boardName: string) {
-    // Create webview panel
+    // Create webview panel with proper options following Microsoft's pattern
     const panel = vscode.window.createWebviewPanel(
         'kanriBoard',
         `Kanri Board: ${boardName}`,
         vscode.ViewColumn.One,
         {
             enableScripts: true,
-            retainContextWhenHidden: true
+            retainContextWhenHidden: true,
+            localResourceRoots: [
+                vscode.Uri.joinPath(context.extensionUri, 'media')
+            ]
         }
     );
 
-    // Set webview HTML content
-    panel.webview.html = getKanbanBoardHTML(boardName);
+    // Generate nonce for security (Microsoft's pattern)
+    const nonce = getNonce();
+    
+    // Get URIs for external resources
+    const scriptUri = panel.webview.asWebviewUri(
+        vscode.Uri.joinPath(context.extensionUri, 'media', 'kanban.js')
+    );
+
+    // Set webview HTML content with Microsoft's CSP and external script pattern
+    panel.webview.html = getKanbanBoardHTML(boardName, panel.webview, nonce, scriptUri);
 
     // Handle messages from webview
     panel.webview.onDidReceiveMessage(
         message => {
             switch (message.command) {
                 case 'addCard':
-                    handleAddCard(panel, message.columnId, message.cardText);
+                    handleAddCard(panel, message.column);
                     break;
                 case 'moveCard':
-                    handleMoveCard(message.cardId, message.fromColumn, message.toColumn);
+                    handleMoveCard(message.cardId, message.targetColumn);
                     break;
                 case 'deleteCard':
-                    handleDeleteCard(message.cardId);
+                    handleDeleteCard(panel, message.cardId);
                     break;
                 case 'renameBoard':
-                    handleRenameBoard(panel, message.newName);
+                    handleRenameBoard(panel, message.currentName);
                     break;
             }
         },
@@ -96,14 +120,15 @@ function createKanbanBoardWebview(context: vscode.ExtensionContext, boardName: s
 }
 
 /**
- * Generates HTML for the Kanban board interface
+ * Generates HTML for the Kanban board interface using Microsoft's security pattern
  */
-function getKanbanBoardHTML(boardName: string): string {
+function getKanbanBoardHTML(boardName: string, webview: vscode.Webview, nonce: string, scriptUri: vscode.Uri): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
     <title>Kanri Board: ${boardName}</title>
     <style>
         * {
@@ -295,7 +320,7 @@ function getKanbanBoardHTML(boardName: string): string {
 <body>
     <div class="board-header">
         <h1 class="board-title">${boardName}</h1>
-        <button class="rename-button" onclick="renameBoard()" title="Rename board">✏️</button>
+        <button class="rename-button board-title" title="Rename board">✏️</button>
     </div>
     
     <div class="kanban-board" id="kanban-board">
@@ -304,23 +329,23 @@ function getKanbanBoardHTML(boardName: string): string {
                 <span class="column-title">To Do</span>
                 <span class="card-count">2</span>
             </div>
-            <div class="cards-container" id="todo-cards">
+            <div class="cards-container" id="todo-cards" data-column="todo">
                 <div class="card" draggable="true" data-card-id="1">
                     <div class="card-actions">
-                        <button class="card-delete" onclick="deleteCard('1')">&times;</button>
+                        <button class="delete-card-btn" data-card-id="1">&times;</button>
                     </div>
                     <div class="card-title">Design new feature</div>
                     <div class="card-description">Create mockups and wireframes for the new dashboard feature</div>
                 </div>
                 <div class="card" draggable="true" data-card-id="2">
                     <div class="card-actions">
-                        <button class="card-delete" onclick="deleteCard('2')">&times;</button>
+                        <button class="delete-card-btn" data-card-id="2">&times;</button>
                     </div>
                     <div class="card-title">Write documentation</div>
                     <div class="card-description">Update API documentation with new endpoints</div>
                 </div>
             </div>
-            <div class="add-card-btn" onclick="addCard('todo')">+ Add a card</div>
+            <div class="add-card-btn" data-column="todo">+ Add a card</div>
         </div>
         
         <div class="column" data-column="inprogress">
@@ -328,16 +353,16 @@ function getKanbanBoardHTML(boardName: string): string {
                 <span class="column-title">In Progress</span>
                 <span class="card-count">1</span>
             </div>
-            <div class="cards-container" id="inprogress-cards">
+            <div class="cards-container" id="inprogress-cards" data-column="inprogress">
                 <div class="card" draggable="true" data-card-id="3">
                     <div class="card-actions">
-                        <button class="card-delete" onclick="deleteCard('3')">&times;</button>
+                        <button class="delete-card-btn" data-card-id="3">&times;</button>
                     </div>
                     <div class="card-title">Implement authentication</div>
                     <div class="card-description">Add OAuth integration and JWT token handling</div>
                 </div>
             </div>
-            <div class="add-card-btn" onclick="addCard('inprogress')">+ Add a card</div>
+            <div class="add-card-btn" data-column="inprogress">+ Add a card</div>
         </div>
         
         <div class="column" data-column="done">
@@ -345,220 +370,88 @@ function getKanbanBoardHTML(boardName: string): string {
                 <span class="column-title">Done</span>
                 <span class="card-count">1</span>
             </div>
-            <div class="cards-container" id="done-cards">
+            <div class="cards-container" id="done-cards" data-column="done">
                 <div class="card" draggable="true" data-card-id="4">
                     <div class="card-actions">
-                        <button class="card-delete" onclick="deleteCard('4')">&times;</button>
+                        <button class="delete-card-btn" data-card-id="4">&times;</button>
                     </div>
                     <div class="card-title">Setup project structure</div>
                     <div class="card-description">Initialize repository and configure build tools</div>
                 </div>
             </div>
-            <div class="add-card-btn" onclick="addCard('done')">+ Add a card</div>
+            <div class="add-card-btn" data-column="done">+ Add a card</div>
         </div>
     </div>
 
-    <script>
-        const vscode = acquireVsCodeApi();
-        let draggedCard = null;
-        
-        // Add card functionality
-        function addCard(columnId) {
-            const cardText = prompt('Enter card title:');
-            if (cardText && cardText.trim()) {
-                vscode.postMessage({
-                    command: 'addCard',
-                    columnId: columnId,
-                    cardText: cardText.trim()
-                });
-            }
-        }
-        
-        // Delete card functionality
-        function deleteCard(cardId) {
-            if (confirm('Delete this card?')) {
-                vscode.postMessage({
-                    command: 'deleteCard',
-                    cardId: cardId
-                });
-                
-                // Remove from UI immediately
-                const cardElement = document.querySelector(\`[data-card-id="\${cardId}"]\`);
-                if (cardElement) {
-                    cardElement.remove();
-                    updateCardCounts();
-                }
-            }
-        }
-        
-        // Add card to column UI
-        function addCardToColumn(columnId, title, cardId) {
-            const cardsContainer = document.getElementById(columnId + '-cards');
-            const cardElement = document.createElement('div');
-            cardElement.className = 'card';
-            cardElement.draggable = true;
-            cardElement.setAttribute('data-card-id', cardId);
-            cardElement.innerHTML = \`
-                <div class="card-actions">
-                    <button class="card-delete" onclick="deleteCard('\${cardId}')">&times;</button>
-                </div>
-                <div class="card-title">\${title}</div>
-                <div class="card-description">Click to add description</div>
-            \`;
-            
-            cardsContainer.appendChild(cardElement);
-            setupDragAndDrop(cardElement);
-            updateCardCounts();
-        }
-        
-        // Setup drag and drop for cards
-        function setupDragAndDrop(cardElement) {
-            cardElement.addEventListener('dragstart', (e) => {
-                draggedCard = cardElement;
-                cardElement.classList.add('dragging');
-            });
-            
-            cardElement.addEventListener('dragend', (e) => {
-                cardElement.classList.remove('dragging');
-                draggedCard = null;
-            });
-        }
-        
-        // Setup drop zones for columns
-        document.querySelectorAll('.cards-container').forEach(container => {
-            container.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                container.parentElement.classList.add('drag-over');
-            });
-            
-            container.addEventListener('dragleave', (e) => {
-                container.parentElement.classList.remove('drag-over');
-            });
-            
-            container.addEventListener('drop', (e) => {
-                e.preventDefault();
-                container.parentElement.classList.remove('drag-over');
-                
-                if (draggedCard && container !== draggedCard.parentElement) {
-                    const fromColumn = draggedCard.parentElement.id.replace('-cards', '');
-                    const toColumn = container.id.replace('-cards', '');
-                    const cardId = draggedCard.getAttribute('data-card-id');
-                    
-                    // Move card in UI
-                    container.appendChild(draggedCard);
-                    updateCardCounts();
-                    
-                    // Notify extension
-                    vscode.postMessage({
-                        command: 'moveCard',
-                        cardId: cardId,
-                        fromColumn: fromColumn,
-                        toColumn: toColumn
-                    });
-                }
-            });
-        });
-        
-        // Update card counts in column headers
-        function updateCardCounts() {
-            document.querySelectorAll('.column').forEach(column => {
-                const cardsContainer = column.querySelector('.cards-container');
-                const cardCount = cardsContainer.children.length;
-                const countElement = column.querySelector('.card-count');
-                countElement.textContent = cardCount;
-            });
-        }
-        
-        // Handle messages from the extension
-        window.addEventListener('message', event => {
-            const message = event.data;
-            switch (message.command) {
-                case 'cardAdded':
-                    // Card was successfully added, ensure it's in the UI
-                    const existingCard = document.querySelector(\`[data-card-id="\${message.card.id}"]\`);
-                    if (!existingCard) {
-                        addCardToColumn(message.card.columnId, message.card.text, message.card.id);
-                    }
-                    break;
-                case 'boardRenamed':
-                    // Update the board title in the UI
-                    const titleElement = document.querySelector('h1');
-                    if (titleElement) {
-                        titleElement.textContent = message.newName;
-                    }
-                    break;
-            }
-        });
-        
-        // Function to rename board
-        function renameBoard() {
-            const currentName = document.querySelector('h1').textContent;
-            const newName = prompt('Enter new board name:', currentName);
-            if (newName && newName.trim() && newName !== currentName) {
-                vscode.postMessage({
-                    command: 'renameBoard',
-                    newName: newName.trim()
-                });
-            }
-        }
-        
-        // Initialize drag and drop for existing cards
-        document.querySelectorAll('.card').forEach(setupDragAndDrop);
-    </script>
+    <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
 }
 
 // Message handlers for webview communication
-function handleAddCard(panel: vscode.WebviewPanel, columnId: string, cardText: string) {
-    if (!cardText.trim()) {
-        vscode.window.showWarningMessage('Card text cannot be empty');
-        return;
-    }
-    
-    // Generate unique card ID
-    const cardId = `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Send message to webview to add the card
-    panel.webview.postMessage({
-        command: 'cardAdded',
-        card: {
-            id: cardId,
-            text: cardText,
-            columnId: columnId
+function handleAddCard(panel: vscode.WebviewPanel, columnId: string) {
+    // Prompt user for card text
+    vscode.window.showInputBox({
+        prompt: 'Enter card title:',
+        placeHolder: 'Enter your task or idea'
+    }).then(cardText => {
+        if (cardText && cardText.trim()) {
+            // Generate unique card ID
+            const cardId = `card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            
+            // Send message to webview to add the card
+            panel.webview.postMessage({
+                command: 'cardAdded',
+                card: {
+                    id: cardId,
+                    title: cardText.trim(),
+                    columnId: columnId
+                },
+                column: columnId
+            });
+            
+            logger.info(`Added card "${cardText}" to column ${columnId}`);
         }
     });
-    
-    logger.info(`Added card "${cardText}" to column ${columnId}`);
 }
 
-function handleMoveCard(cardId: string, fromColumn: string, toColumn: string) {
-    logger.info(`Moving card ${cardId} from ${fromColumn} to ${toColumn}`);
+function handleMoveCard(cardId: string, targetColumn: string) {
+    logger.info(`Moving card ${cardId} to ${targetColumn}`);
     // TODO: Update persistent storage when implemented
 }
 
-function handleDeleteCard(cardId: string) {
+function handleDeleteCard(panel: vscode.WebviewPanel, cardId: string) {
     logger.info(`Deleting card ${cardId}`);
+    
+    // Send message to webview to remove the card
+    panel.webview.postMessage({
+        command: 'cardDeleted',
+        cardId: cardId
+    });
     // TODO: Remove from persistent storage when implemented
 }
 
-function handleRenameBoard(panel: vscode.WebviewPanel, newName: string) {
-    if (!newName.trim()) {
-        vscode.window.showWarningMessage('Board name cannot be empty');
-        return;
-    }
-    
-    // Update the panel title
-    panel.title = `Kanri Board: ${newName}`;
-    
-    // Send message to webview to update the board name
-    panel.webview.postMessage({
-        command: 'boardRenamed',
-        newName: newName
+function handleRenameBoard(panel: vscode.WebviewPanel, currentName: string) {
+    // Prompt user for new board name
+    vscode.window.showInputBox({
+        prompt: 'Enter new board name:',
+        value: currentName,
+        placeHolder: 'Board name'
+    }).then(newName => {
+        if (newName && newName.trim() && newName !== currentName) {
+            // Update the panel title
+            panel.title = `Kanri Board: ${newName}`;
+            
+            // Send message to webview to update the board name
+            panel.webview.postMessage({
+                command: 'boardRenamed',
+                newName: newName
+            });
+            
+            logger.info(`Renamed board to "${newName}"`);
+            vscode.window.showInformationMessage(`Board renamed to "${newName}"`);
+        }
     });
-    
-    logger.info(`Renamed board to "${newName}"`);
-    vscode.window.showInformationMessage(`Board renamed to "${newName}"`);
 }
 
 /**
