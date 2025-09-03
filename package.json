@@ -1,10 +1,27 @@
 {
   "name": "kanri-for-vscode",
   "displayName": "Kanri for VS Code",
-  "description": "A kanban board management extension for Visual Studio Code",
+  "description": "Visual Kanban boards for project management directly in VS Code. Create, manage, and organize tasks with drag-and-drop cards and customizable columns.",
   "version": "0.1.0",
   "publisher": "bheimbigner",
   "license": "MIT",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "keywords": [
+    "kanban",
+    "project management", 
+    "task management",
+    "agile",
+    "scrum",
+    "productivity",
+    "workflow",
+    "board",
+    "cards",
+    "todo"
+  ],
   "author": {
     "name": "Brandon Heimbigner",
     "email": "bheimbigner@icloud.com"
@@ -21,7 +38,8 @@
     "vscode": "^1.74.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Visualization"
   ],
   "activationEvents": [
     "onCommand:kanri.createBoard",

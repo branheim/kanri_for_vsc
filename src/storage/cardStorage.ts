@@ -42,6 +42,12 @@
 
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
+import { 
+    InputValidator, 
+    ValidationPresets, 
+    ValidationResult, 
+    createInputValidator 
+} from '../utils/inputValidator';
 
 /**
  * Represents a kanban card with all necessary metadata
@@ -147,6 +153,9 @@ export class CardStorage {
     /** Logger instance for operation tracking and debugging */
     private readonly logger: Logger;
     
+    /** Input validator for secure data handling */
+    private readonly validator: InputValidator;
+    
     /** Storage key prefix to avoid conflicts with other extensions */
     private readonly storagePrefix = 'kanri.cards';
     
@@ -171,6 +180,7 @@ export class CardStorage {
     constructor(context: vscode.ExtensionContext, logger: Logger) {
         this.context = context;
         this.logger = logger;
+        this.validator = createInputValidator(logger);
         
         // Log initialization for debugging extension lifecycle
         this.logger.info(`CardStorage initialized with prefix: ${this.storagePrefix}`);
@@ -243,6 +253,73 @@ export class CardStorage {
      */
     async createCard(options: CreateCardOptions): Promise<StorageResult<KanbanCard>> {
         try {
+            // ========================================
+            // Input Validation Phase
+            // ========================================
+            
+            // Validate card title using preset validation rules
+            const titleValidation = this.validator.validate(options.title, ValidationPresets.CARD_TITLE);
+            if (!titleValidation.isValid) {
+                this.logger.error(`Card title validation failed: ${titleValidation.errors.join(', ')}`);
+                return {
+                    success: false,
+                    error: `Invalid card title: ${titleValidation.errors.join(', ')}`,
+                    context: { validationErrors: titleValidation.errors, errorCodes: titleValidation.errorCodes }
+                };
+            }
+
+            // Validate card description if provided
+            let sanitizedDescription: string | undefined;
+            if (options.description) {
+                const descValidation = this.validator.validate(options.description, ValidationPresets.CARD_DESCRIPTION);
+                if (!descValidation.isValid) {
+                    this.logger.error(`Card description validation failed: ${descValidation.errors.join(', ')}`);
+                    return {
+                        success: false,
+                        error: `Invalid card description: ${descValidation.errors.join(', ')}`,
+                        context: { validationErrors: descValidation.errors, errorCodes: descValidation.errorCodes }
+                    };
+                }
+                sanitizedDescription = descValidation.sanitizedValue;
+            }
+
+            // Validate column ID using board name preset (similar validation rules)
+            const columnValidation = this.validator.validate(options.columnId, ValidationPresets.COLUMN_NAME);
+            if (!columnValidation.isValid) {
+                this.logger.error(`Column ID validation failed: ${columnValidation.errors.join(', ')}`);
+                return {
+                    success: false,
+                    error: `Invalid column ID: ${columnValidation.errors.join(', ')}`,
+                    context: { validationErrors: columnValidation.errors, errorCodes: columnValidation.errorCodes }
+                };
+            }
+
+            // Validate and sanitize tags if provided
+            const sanitizedTags: string[] = [];
+            if (options.tags && options.tags.length > 0) {
+                for (const tag of options.tags) {
+                    const tagValidation = this.validator.validate(tag, {
+                        minLength: 1,
+                        maxLength: 20,
+                        allowHtml: false,
+                        allowScripts: false,
+                        trimWhitespace: true,
+                        allowedPattern: /^[a-zA-Z0-9\s\-_]+$/
+                    });
+                    
+                    if (!tagValidation.isValid) {
+                        this.logger.warn(`Skipping invalid tag "${tag}": ${tagValidation.errors.join(', ')}`);
+                        continue; // Skip invalid tags rather than failing entire operation
+                    }
+                    
+                    sanitizedTags.push(tagValidation.sanitizedValue);
+                }
+            }
+
+            // ========================================
+            // Card Creation Phase
+            // ========================================
+            
             // Generate unique ID using timestamp and random component
             // This ensures uniqueness across sessions and rapid creation
             const cardId = `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -255,16 +332,16 @@ export class CardStorage {
             const columnCards = await this.getCardsByColumn(options.columnId);
             const maxOrder = columnCards.data?.reduce((max, card) => Math.max(max, card.order), 0) || 0;
             
-            // Construct the complete card object with all metadata
+            // Construct the complete card object with validated and sanitized data
             const newCard: KanbanCard = {
                 id: cardId,
-                title: options.title.trim(), // Remove whitespace for clean display
-                description: options.description?.trim(),
-                columnId: options.columnId,
+                title: titleValidation.sanitizedValue, // Use sanitized title
+                description: sanitizedDescription, // Use sanitized description
+                columnId: columnValidation.sanitizedValue, // Use sanitized column ID
                 createdAt: now,
                 updatedAt: now,
                 order: maxOrder + 1, // Place at end of column
-                tags: options.tags || [],
+                tags: sanitizedTags, // Use validated tags only
                 priority: options.priority
             };
 

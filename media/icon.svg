@@ -1,0 +1,12 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with VS Code blue theme -->
+  <circle cx="64" cy="64" r="60" fill="#007ACC" stroke="#ffffff" stroke-width="2"/>
+  
+  <!-- Japanese Kanji for Kanban (看板) -->
+  <text x="64" y="80" 
+        font-family="'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'MS Gothic', sans-serif" 
+        font-size="48" 
+        font-weight="bold" 
+        text-anchor="middle" 
+        fill="white">看板</text>
+</svg>

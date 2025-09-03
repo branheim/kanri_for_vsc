@@ -1,5 +1,100 @@
 # Kanri for VS Code
 
+Visual Kanban boards for project management directly in Visual Studio Code. Create, manage, and organize your tasks with intuitive drag-and-drop cards and customizable columns.
+
+![Kanri Demo](https://placeholder-for-demo-gif.gif)
+
+## Features
+
+- 🎯 **Visual Kanban Boards**: Create beautiful, interactive kanban boards within VS Code
+- 📝 **Card Management**: Add, edit, move, and delete cards with ease
+- 📂 **Column Customization**: Create custom columns to match your workflow
+- 🔄 **Drag & Drop**: Intuitive card movement between columns
+- 💾 **Persistent Storage**: Your boards are automatically saved per workspace
+- 🎨 **Clean Interface**: Modern UI that integrates seamlessly with VS Code
+- ⚡ **Performance**: Fast, responsive interface built with Microsoft's best practices
+
+## Quick Start
+
+1. Install the extension
+2. Open Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
+3. Run command: `Kanri: Create Board`
+4. Enter a board name and start organizing your tasks!
+
+## Usage
+
+### Creating a Board
+- Command: `Kanri: Create Board`
+- Creates a new kanban board with default columns (To Do, In Progress, Done)
+
+### Managing Cards
+- **Add Card**: Click the "+" button in any column
+- **Move Card**: Drag and drop cards between columns
+- **Edit Card**: Click on a card to edit its content
+- **Delete Card**: Use the delete button on any card
+
+### Customizing Columns
+- **Add Column**: Use the "Add Column" button
+- **Delete Column**: Remove empty columns as needed
+- **Reorder Columns**: Drag column headers to reorder
+
+## Configuration
+
+Customize Kanri through VS Code settings:
+
+```json
+{
+  "kanri.defaultColumns": ["Backlog", "In Progress", "Review", "Done"],
+  "kanri.autoSave": true
+}
+```
+
+### Settings
+
+- `kanri.defaultColumns`: Array of default column names for new boards
+- `kanri.autoSave`: Automatically save board changes (default: true)
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `Kanri: Create Board` | Create a new kanban board |
+| `Kanri: Open Board` | Open an existing board |
+| `Kanri: Add Card` | Add a new card to the current board |
+
+## Requirements
+
+- Visual Studio Code 1.74.0 or higher
+
+## Known Issues
+
+- Boards are workspace-specific (not synced across workspaces)
+- No collaborative editing support yet
+
+## Release Notes
+
+### 0.1.0
+
+Initial release of Kanri for VS Code
+
+- Basic kanban board functionality
+- Card creation, editing, and movement
+- Column management
+- Persistent storage
+- Drag and drop interface
+
+## Contributing
+
+Found a bug or have a feature request? Please open an issue on [GitHub](https://github.com/bheimbigner/kanri-for-vscode/issues).
+
+## License
+
+[MIT](LICENSE) - See LICENSE file for details.
+
+---
+
+**Enjoy organizing your projects with Kanri!** 🎉
+
 A comprehensive VS Code extension that brings kanban board functionality directly into your development workflow. Manage tasks, track progress, and organize your work without leaving your editor.
 
 ## ✨ Features
