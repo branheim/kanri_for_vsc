@@ -91,6 +91,12 @@ function createKanbanBoardWebview(context, boardName) {
             case 'renameBoard':
                 handleRenameBoard(panel, message.currentName);
                 break;
+            case 'addColumn':
+                handleAddColumn(panel);
+                break;
+            case 'deleteColumn':
+                handleDeleteColumn(panel, message.columnId);
+                break;
         }
     }, undefined, context.subscriptions);
     vscode.window.showInformationMessage(`Kanban board "${boardName}" opened!`);
@@ -185,6 +191,30 @@ function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
             font-size: 16px;
             font-weight: 600;
             color: var(--vscode-editor-foreground);
+            flex: 1;
+        }
+        
+        .column-actions {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        
+        .delete-column-btn {
+            background: transparent;
+            border: none;
+            color: var(--vscode-errorForeground);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 4px;
+            border-radius: 3px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        
+        .delete-column-btn:hover {
+            opacity: 1;
+            background: var(--vscode-inputValidation-errorBackground);
         }
         
         .card-count {
@@ -256,23 +286,44 @@ function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
         }
         
         .add-card-btn {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-            border: 1px dashed var(--vscode-input-border);
-            border-radius: 6px;
+            background: transparent;
+            border: 2px dashed var(--vscode-panel-border);
+            color: var(--vscode-descriptionForeground);
             padding: 12px;
+            border-radius: 6px;
             cursor: pointer;
+            margin-top: 10px;
             text-align: center;
             transition: all 0.2s ease;
-            margin-top: 10px;
         }
         
         .add-card-btn:hover {
-            background: var(--vscode-button-hoverBackground);
             border-color: var(--vscode-focusBorder);
+            color: var(--vscode-editor-foreground);
+            background: var(--vscode-list-hoverBackground);
         }
         
-        .card.dragging {
+        .add-column-btn {
+            background: transparent;
+            border: 2px dashed var(--vscode-panel-border);
+            color: var(--vscode-descriptionForeground);
+            min-width: 300px;
+            min-height: 100px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+        
+        .add-column-btn:hover {
+            border-color: var(--vscode-focusBorder);
+            color: var(--vscode-editor-foreground);
+            background: var(--vscode-list-hoverBackground);
+        }        .card.dragging {
             opacity: 0.5;
             transform: rotate(2deg);
         }
@@ -303,7 +354,10 @@ function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
         <div class="column" data-column="todo">
             <div class="column-header">
                 <span class="column-title">To Do</span>
-                <span class="card-count">2</span>
+                <div class="column-actions">
+                    <span class="card-count">2</span>
+                    <button class="delete-column-btn" data-column="todo" title="Delete column">&times;</button>
+                </div>
             </div>
             <div class="cards-container" id="todo-cards" data-column="todo">
                 <div class="card" draggable="true" data-card-id="1" id="1">
@@ -327,7 +381,10 @@ function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
         <div class="column" data-column="inprogress">
             <div class="column-header">
                 <span class="column-title">In Progress</span>
-                <span class="card-count">1</span>
+                <div class="column-actions">
+                    <span class="card-count">1</span>
+                    <button class="delete-column-btn" data-column="inprogress" title="Delete column">&times;</button>
+                </div>
             </div>
             <div class="cards-container" id="inprogress-cards" data-column="inprogress">
                 <div class="card" draggable="true" data-card-id="3" id="3">
@@ -344,7 +401,10 @@ function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
         <div class="column" data-column="done">
             <div class="column-header">
                 <span class="column-title">Done</span>
-                <span class="card-count">1</span>
+                <div class="column-actions">
+                    <span class="card-count">1</span>
+                    <button class="delete-column-btn" data-column="done" title="Delete column">&times;</button>
+                </div>
             </div>
             <div class="cards-container" id="done-cards" data-column="done">
                 <div class="card" draggable="true" data-card-id="4" id="4">
@@ -357,6 +417,8 @@ function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
             </div>
             <div class="add-card-btn" data-column="done">+ Add a card</div>
         </div>
+        
+        <div class="add-column-btn" id="add-column-btn">+ Add Column</div>
     </div>
 
     <script nonce="${nonce}" src="${scriptUri}"></script>
@@ -417,6 +479,39 @@ function handleRenameBoard(panel, currentName) {
             });
             logger.info(`Renamed board to "${newName}"`);
             vscode.window.showInformationMessage(`Board renamed to "${newName}"`);
+        }
+    });
+}
+function handleAddColumn(panel) {
+    // Prompt user for column name
+    vscode.window.showInputBox({
+        prompt: 'Enter column name:',
+        placeHolder: 'Column name'
+    }).then(columnName => {
+        if (columnName && columnName.trim()) {
+            // Generate a unique column ID
+            const columnId = columnName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now();
+            // Send message to webview to add the column
+            panel.webview.postMessage({
+                command: 'columnAdded',
+                columnId: columnId,
+                columnName: columnName.trim()
+            });
+            logger.info(`Added column "${columnName}" with ID "${columnId}"`);
+        }
+    });
+}
+function handleDeleteColumn(panel, columnId) {
+    // Ask for confirmation before deleting
+    vscode.window.showWarningMessage(`Are you sure you want to delete this column? All cards in it will be lost.`, { modal: true }, 'Delete Column').then(answer => {
+        if (answer === 'Delete Column') {
+            // Send message to webview to remove the column
+            panel.webview.postMessage({
+                command: 'columnDeleted',
+                columnId: columnId
+            });
+            logger.info(`Deleted column ${columnId}`);
+            vscode.window.showInformationMessage('Column deleted');
         }
     });
 }

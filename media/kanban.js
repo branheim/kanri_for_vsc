@@ -65,6 +65,31 @@
                 });
             });
         }
+
+        // Add column button
+        const addColumnButton = document.getElementById('add-column-btn');
+        if (addColumnButton) {
+            addColumnButton.addEventListener('click', function() {
+                console.log('Add column clicked');
+                
+                vscode.postMessage({
+                    command: 'addColumn'
+                });
+            });
+        }
+
+        // Delete column buttons
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('delete-column-btn')) {
+                const columnId = e.target.getAttribute('data-column');
+                console.log('Delete column clicked for column:', columnId);
+                
+                vscode.postMessage({
+                    command: 'deleteColumn',
+                    columnId: columnId
+                });
+            }
+        });
     }
 
     function initializeDragAndDrop() {
@@ -181,6 +206,12 @@
             case 'boardRenamed':
                 updateBoardTitle(message.newName);
                 break;
+            case 'columnAdded':
+                addColumnToBoard(message.columnId, message.columnName);
+                break;
+            case 'columnDeleted':
+                removeColumnFromBoard(message.columnId);
+                break;
         }
     });
 
@@ -238,5 +269,46 @@
         `;
         
         return cardDiv;
+    }
+
+    function addColumnToBoard(columnId, columnName) {
+        const kanbanBoard = document.getElementById('kanban-board');
+        const addColumnButton = document.getElementById('add-column-btn');
+        
+        if (kanbanBoard && addColumnButton) {
+            // Create the new column element
+            const columnDiv = document.createElement('div');
+            columnDiv.className = 'column';
+            columnDiv.setAttribute('data-column', columnId);
+            
+            columnDiv.innerHTML = `
+                <div class="column-header">
+                    <span class="column-title">${columnName}</span>
+                    <div class="column-actions">
+                        <span class="card-count">0</span>
+                        <button class="delete-column-btn" data-column="${columnId}" title="Delete column">&times;</button>
+                    </div>
+                </div>
+                <div class="cards-container" id="${columnId}-cards" data-column="${columnId}">
+                </div>
+                <div class="add-card-btn" data-column="${columnId}">+ Add a card</div>
+            `;
+            
+            // Insert the new column before the add column button
+            kanbanBoard.insertBefore(columnDiv, addColumnButton);
+            
+            // Re-initialize event listeners and drag-drop for the new column
+            initializeKanbanBoard();
+            
+            console.log('Column added to UI:', columnId, 'with name:', columnName);
+        }
+    }
+
+    function removeColumnFromBoard(columnId) {
+        const columnElement = document.querySelector(`[data-column="${columnId}"]`);
+        if (columnElement) {
+            columnElement.remove();
+            console.log('Column removed from UI:', columnId);
+        }
     }
 })();
