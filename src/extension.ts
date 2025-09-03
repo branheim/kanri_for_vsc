@@ -330,14 +330,14 @@ function getKanbanBoardHTML(boardName: string, webview: vscode.Webview, nonce: s
                 <span class="card-count">2</span>
             </div>
             <div class="cards-container" id="todo-cards" data-column="todo">
-                <div class="card" draggable="true" data-card-id="1">
+                <div class="card" draggable="true" data-card-id="1" id="1">
                     <div class="card-actions">
                         <button class="delete-card-btn" data-card-id="1">&times;</button>
                     </div>
                     <div class="card-title">Design new feature</div>
                     <div class="card-description">Create mockups and wireframes for the new dashboard feature</div>
                 </div>
-                <div class="card" draggable="true" data-card-id="2">
+                <div class="card" draggable="true" data-card-id="2" id="2">
                     <div class="card-actions">
                         <button class="delete-card-btn" data-card-id="2">&times;</button>
                     </div>
@@ -354,7 +354,7 @@ function getKanbanBoardHTML(boardName: string, webview: vscode.Webview, nonce: s
                 <span class="card-count">1</span>
             </div>
             <div class="cards-container" id="inprogress-cards" data-column="inprogress">
-                <div class="card" draggable="true" data-card-id="3">
+                <div class="card" draggable="true" data-card-id="3" id="3">
                     <div class="card-actions">
                         <button class="delete-card-btn" data-card-id="3">&times;</button>
                     </div>
@@ -371,7 +371,7 @@ function getKanbanBoardHTML(boardName: string, webview: vscode.Webview, nonce: s
                 <span class="card-count">1</span>
             </div>
             <div class="cards-container" id="done-cards" data-column="done">
-                <div class="card" draggable="true" data-card-id="4">
+                <div class="card" draggable="true" data-card-id="4" id="4">
                     <div class="card-actions">
                         <button class="delete-card-btn" data-card-id="4">&times;</button>
                     </div>

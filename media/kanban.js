@@ -4,8 +4,12 @@
 (function() {
     const vscode = acquireVsCodeApi();
     
-    // Initialize the kanban board when DOM loads
+    // Initialize immediately and also on DOM load to catch both scenarios
+    initializeKanbanBoard();
+    
+    // Also initialize when DOM loads (backup)
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded - reinitializing kanban board');
         initializeKanbanBoard();
     });
 
@@ -98,6 +102,11 @@
 
     // Drag event handlers
     function handleDragStart(e) {
+        // Ensure card has an ID for drag operations
+        if (!this.id) {
+            this.id = this.getAttribute('data-card-id') || `temp-${Date.now()}`;
+        }
+        
         e.dataTransfer.setData('text/plain', this.id);
         this.classList.add('dragging');
         console.log('Drag started for card:', this.id);
