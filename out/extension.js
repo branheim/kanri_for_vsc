@@ -104,30 +104,45 @@ async function createKanbanBoardWebview(context, boardName) {
     const scriptUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'kanban.js'));
     // Set webview HTML content with Microsoft's CSP and external script pattern
     panel.webview.html = getKanbanBoardHTML(board, panel.webview, nonce, scriptUri);
-    // Handle messages from webview
-    panel.webview.onDidReceiveMessage(message => {
-        switch (message.command) {
-            case 'addCard':
-                handleAddCard(panel, message.column, cardStorage);
-                break;
-            case 'moveCard':
-                handleMoveCard(message.cardId, message.targetColumn, cardStorage);
-                break;
-            case 'deleteCard':
-                handleDeleteCard(panel, message.cardId, cardStorage);
-                break;
-            case 'renameBoard':
-                handleRenameBoard(panel, message.currentName);
-                break;
-            case 'addColumn':
-                handleAddColumn(panel);
-                break;
-            case 'deleteColumn':
-                handleDeleteColumn(panel, message.columnId);
-                break;
-            case 'reorderColumn':
-                handleReorderColumn(message.draggedColumnId, message.targetColumnId);
-                break;
+    // Handle messages from webview with proper persistence
+    panel.webview.onDidReceiveMessage(async (message) => {
+        try {
+            switch (message.command) {
+                case 'addCard':
+                    await handleAddCard(panel, message.column, cardStorage, boardManager, boardName);
+                    break;
+                case 'moveCard':
+                    await handleMoveCard(message.cardId, message.targetColumn, cardStorage, panel);
+                    break;
+                case 'deleteCard':
+                    await handleDeleteCard(panel, message.cardId, cardStorage);
+                    break;
+                case 'updateCard':
+                    await handleUpdateCard(panel, message.cardId, message.updates, cardStorage);
+                    break;
+                case 'renameBoard':
+                    await handleRenameBoard(panel, message.currentName, boardManager, boardName);
+                    break;
+                case 'addColumn':
+                    await handleAddColumn(panel, boardManager, boardName);
+                    break;
+                case 'deleteColumn':
+                    await handleDeleteColumn(panel, message.columnId, cardStorage, boardManager, boardName);
+                    break;
+                case 'renameColumn':
+                    await handleRenameColumn(panel, message.columnId, message.newTitle, boardManager, boardName);
+                    break;
+                case 'reorderColumn':
+                    await handleReorderColumn(message.draggedColumnId, message.targetColumnId, boardManager, boardName);
+                    break;
+                case 'refreshBoard':
+                    await refreshBoardView(panel, boardName, cardStorage, boardManager);
+                    break;
+            }
+        }
+        catch (error) {
+            logger.error(`Error handling message ${message.command}:`, error);
+            vscode.window.showErrorMessage(`Failed to ${message.command}: ${error}`);
         }
     }, undefined, context.subscriptions);
     vscode.window.showInformationMessage(`Kanban board "${boardName}" opened!`);
@@ -470,7 +485,7 @@ function getKanbanBoardHTML(board, webview, nonce, scriptUri) {
 </html>`;
 }
 // Message handlers for webview communication
-async function handleAddCard(panel, columnId, cardStorage) {
+async function handleAddCard(panel, columnId, cardStorage, boardManager, boardName) {
     try {
         // Prompt user for card text
         const cardText = await vscode.window.showInputBox({
@@ -512,15 +527,28 @@ async function handleAddCard(panel, columnId, cardStorage) {
         vscode.window.showErrorMessage(`Failed to add card: ${errorMessage}`);
     }
 }
-async function handleMoveCard(cardId, targetColumn, cardStorage) {
+async function handleMoveCard(cardId, targetColumn, cardStorage, panel) {
     try {
         logger.info(`Moving card ${cardId} to ${targetColumn}`);
         // Update card's column using storage system
         const result = await cardStorage.updateCard(cardId, { columnId: targetColumn });
         if (result.success) {
+            // Send confirmation to webview that move was persisted
+            panel.webview.postMessage({
+                command: 'cardMoved',
+                cardId: cardId,
+                targetColumn: targetColumn,
+                success: true
+            });
             logger.info(`Successfully moved card ${cardId} to column ${targetColumn}`);
         }
         else {
+            // Send failure notification to webview to revert the move
+            panel.webview.postMessage({
+                command: 'cardMoveError',
+                cardId: cardId,
+                error: result.error
+            });
             logger.error(`Failed to move card ${cardId}: ${result.error}`);
             vscode.window.showWarningMessage(`Failed to save card move: ${result.error}`);
         }
@@ -556,14 +584,53 @@ async function handleDeleteCard(panel, cardId, cardStorage) {
         vscode.window.showErrorMessage(`Failed to delete card: ${errorMessage}`);
     }
 }
-function handleRenameBoard(panel, currentName) {
-    // Prompt user for new board name
-    vscode.window.showInputBox({
-        prompt: 'Enter new board name:',
-        value: currentName,
-        placeHolder: 'Board name'
-    }).then(newName => {
+function handleReorderColumn(draggedColumnId, targetColumnId, boardManager, boardName) {
+    logger.info(`Reordering column ${draggedColumnId} before ${targetColumnId}`);
+    // TODO: Update persistent storage when implemented
+    // For now, just log the reorder operation
+}
+/**
+ * Handle card updates with persistence
+ */
+async function handleUpdateCard(panel, cardId, updates, cardStorage) {
+    try {
+        const result = await cardStorage.updateCard(cardId, updates);
+        if (result.success && result.data) {
+            // Send updated card back to webview
+            panel.webview.postMessage({
+                command: 'cardUpdated',
+                card: result.data
+            });
+            logger.info(`Updated card ${cardId}`);
+        }
+        else {
+            logger.error(`Failed to update card ${cardId}: ${result.error}`);
+            vscode.window.showErrorMessage(`Failed to update card: ${result.error}`);
+        }
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Error updating card ${cardId}: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Failed to update card: ${errorMessage}`);
+    }
+}
+/**
+ * Handle board rename with persistence
+ */
+async function handleRenameBoard(panel, currentName, boardManager, boardName) {
+    try {
+        const newName = await vscode.window.showInputBox({
+            prompt: 'Enter new board name:',
+            value: currentName,
+            placeHolder: 'Board name'
+        });
         if (newName && newName.trim() && newName !== currentName) {
+            // Update board in storage
+            const board = await boardManager.getBoard(boardName);
+            if (board) {
+                board.name = newName.trim();
+                await boardManager.saveBoard(board);
+            }
             // Update the panel title
             panel.title = `Kanri Board: ${newName}`;
             // Send message to webview to update the board name
@@ -574,17 +641,35 @@ function handleRenameBoard(panel, currentName) {
             logger.info(`Renamed board to "${newName}"`);
             vscode.window.showInformationMessage(`Board renamed to "${newName}"`);
         }
-    });
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Error renaming board: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Failed to rename board: ${errorMessage}`);
+    }
 }
-function handleAddColumn(panel) {
-    // Prompt user for column name
-    vscode.window.showInputBox({
-        prompt: 'Enter column name:',
-        placeHolder: 'Column name'
-    }).then(columnName => {
+/**
+ * Handle column addition with persistence
+ */
+async function handleAddColumn(panel, boardManager, boardName) {
+    try {
+        const columnName = await vscode.window.showInputBox({
+            prompt: 'Enter column name:',
+            placeHolder: 'Column name'
+        });
         if (columnName && columnName.trim()) {
             // Generate a unique column ID
             const columnId = columnName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now();
+            // Update board structure
+            const board = await boardManager.getBoard(boardName);
+            if (board) {
+                board.columns.push({
+                    id: columnId,
+                    title: columnName.trim(),
+                    cards: []
+                });
+                await boardManager.saveBoard(board);
+            }
             // Send message to webview to add the column
             panel.webview.postMessage({
                 command: 'columnAdded',
@@ -593,12 +678,33 @@ function handleAddColumn(panel) {
             });
             logger.info(`Added column "${columnName}" with ID "${columnId}"`);
         }
-    });
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Error adding column: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Failed to add column: ${errorMessage}`);
+    }
 }
-function handleDeleteColumn(panel, columnId) {
-    // Ask for confirmation before deleting
-    vscode.window.showWarningMessage(`Are you sure you want to delete this column? All cards in it will be lost.`, { modal: true }, 'Delete Column').then(answer => {
+/**
+ * Handle column deletion with persistence
+ */
+async function handleDeleteColumn(panel, columnId, cardStorage, boardManager, boardName) {
+    try {
+        const answer = await vscode.window.showWarningMessage(`Are you sure you want to delete this column? All cards in it will be lost.`, { modal: true }, 'Delete Column');
         if (answer === 'Delete Column') {
+            // Delete all cards in the column first
+            const columnCards = await cardStorage.getCardsByColumn(columnId);
+            if (columnCards.success && columnCards.data) {
+                for (const card of columnCards.data) {
+                    await cardStorage.deleteCard(card.id);
+                }
+            }
+            // Update board structure
+            const board = await boardManager.getBoard(boardName);
+            if (board) {
+                board.columns = board.columns.filter(col => col.id !== columnId);
+                await boardManager.saveBoard(board);
+            }
             // Send message to webview to remove the column
             panel.webview.postMessage({
                 command: 'columnDeleted',
@@ -607,12 +713,112 @@ function handleDeleteColumn(panel, columnId) {
             logger.info(`Deleted column ${columnId}`);
             vscode.window.showInformationMessage('Column deleted');
         }
-    });
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Error deleting column: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Failed to delete column: ${errorMessage}`);
+    }
 }
-function handleReorderColumn(draggedColumnId, targetColumnId) {
-    logger.info(`Reordering column ${draggedColumnId} before ${targetColumnId}`);
-    // TODO: Update persistent storage when implemented
-    // For now, just log the reorder operation
+/**
+ * Handle column renaming with persistence
+ */
+async function handleRenameColumn(panel, columnId, newTitle, boardManager, boardName) {
+    try {
+        // Update board structure
+        const board = await boardManager.getBoard(boardName);
+        if (board) {
+            const column = board.columns.find(col => col.id === columnId);
+            if (column) {
+                column.title = newTitle.trim();
+                await boardManager.saveBoard(board);
+                // Send confirmation to webview
+                panel.webview.postMessage({
+                    command: 'columnRenamed',
+                    columnId: columnId,
+                    newTitle: newTitle
+                });
+                logger.info(`Renamed column ${columnId} to "${newTitle}"`);
+            }
+        }
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Error renaming column: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Failed to rename column: ${errorMessage}`);
+    }
+}
+/**
+ * Helper function to update board structure when card is added
+ */
+async function updateBoardWithNewCard(card, boardManager, boardName) {
+    try {
+        const board = await boardManager.getBoard(boardName);
+        if (board) {
+            const column = board.columns.find(col => col.id === card.columnId);
+            if (column) {
+                // Add card to column if not already there
+                const existingCard = column.cards.find(c => c.id === card.id);
+                if (!existingCard) {
+                    const boardCard = {
+                        id: card.id,
+                        title: card.title,
+                        description: card.description || '',
+                        priority: card.priority || 'medium',
+                        tags: card.tags || [],
+                        createdAt: card.createdAt,
+                        lastModified: card.updatedAt
+                    };
+                    column.cards.push(boardCard);
+                    await boardManager.saveBoard(board);
+                }
+            }
+        }
+    }
+    catch (error) {
+        logger.error(`Error updating board structure: ${error}`);
+    }
+}
+/**
+ * Refresh board view with latest data from storage
+ */
+async function refreshBoardView(panel, boardName, cardStorage, boardManager) {
+    try {
+        // Get fresh board data
+        const board = await boardManager.getBoard(boardName);
+        if (board) {
+            // Get all cards from storage and organize by column
+            const allCards = await cardStorage.getAllCards();
+            if (allCards.success && allCards.data) {
+                // Update board columns with current cards
+                for (const column of board.columns) {
+                    const columnCards = allCards.data
+                        .filter(card => card.columnId === column.id)
+                        .sort((a, b) => a.order - b.order)
+                        .map(card => ({
+                        id: card.id,
+                        title: card.title,
+                        description: card.description,
+                        priority: card.priority || 'medium',
+                        tags: card.tags || [],
+                        createdAt: card.createdAt,
+                        lastModified: card.updatedAt
+                    }));
+                    column.cards = columnCards; // Type assertion for compatibility
+                }
+                // Save updated board structure
+                await boardManager.saveBoard(board);
+                // Send fresh board data to webview
+                panel.webview.postMessage({
+                    command: 'boardRefreshed',
+                    board: board
+                });
+            }
+        }
+    }
+    catch (error) {
+        logger.error(`Error refreshing board view: ${error}`);
+    }
 }
 /**
  * Extension deactivation - called when VS Code unloads the extension

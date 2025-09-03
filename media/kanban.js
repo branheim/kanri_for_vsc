@@ -350,14 +350,29 @@
             case 'cardDeleted':
                 removeCardFromBoard(message.cardId);
                 break;
+            case 'cardMoved':
+                handleCardMoved(message.cardId, message.targetColumn, message.success);
+                break;
+            case 'cardMoveError':
+                handleCardMoveError(message.cardId, message.error);
+                break;
+            case 'cardUpdated':
+                updateCardInBoard(message.card);
+                break;
             case 'boardRenamed':
                 updateBoardTitle(message.newName);
+                break;
+            case 'boardRefreshed':
+                refreshBoardDisplay(message.board);
                 break;
             case 'columnAdded':
                 addColumnToBoard(message.columnId, message.columnName);
                 break;
             case 'columnDeleted':
                 removeColumnFromBoard(message.columnId);
+                break;
+            case 'columnRenamed':
+                updateColumnTitle(message.columnId, message.newTitle);
                 break;
         }
     });
@@ -459,4 +474,100 @@
             console.log('Column removed from UI:', columnId);
         }
     }
+
+    // New handler functions for better persistence feedback
+    
+    function handleCardMoved(cardId, targetColumn, success) {
+        if (success) {
+            console.log('Card move confirmed by server:', cardId, 'to', targetColumn);
+            // Card should already be in the right place from drag-and-drop
+            // Just confirm the operation was saved
+        } else {
+            console.error('Card move failed on server, should revert');
+            // Could implement revert logic here if needed
+        }
+    }
+
+    function handleCardMoveError(cardId, error) {
+        console.error('Card move error:', cardId, error);
+        // Show user feedback about the error
+        // Could revert the UI change here
+    }
+
+    function updateCardInBoard(card) {
+        const cardElement = document.getElementById(card.id);
+        if (cardElement) {
+            // Update card content
+            const titleElement = cardElement.querySelector('.card-title');
+            const descElement = cardElement.querySelector('.card-description');
+            
+            if (titleElement) titleElement.textContent = card.title;
+            if (descElement) descElement.textContent = card.description || '';
+            
+            console.log('Card updated in UI:', card.id);
+        }
+    }
+
+    function updateColumnTitle(columnId, newTitle) {
+        const columnElement = document.querySelector(`[data-column="${columnId}"] .column-title`);
+        if (columnElement) {
+            columnElement.textContent = newTitle;
+            console.log('Column title updated:', columnId, 'to', newTitle);
+        }
+    }
+
+    function refreshBoardDisplay(board) {
+        console.log('Refreshing board display with latest data:', board);
+        
+        // Update board title
+        const titleElement = document.querySelector('h1.board-title');
+        if (titleElement && board.name) {
+            titleElement.textContent = board.name;
+        }
+
+        // Refresh all columns and cards
+        board.columns.forEach(column => {
+            const columnElement = document.querySelector(`[data-column="${column.id}"]`);
+            if (columnElement) {
+                // Update column title
+                const columnTitle = columnElement.querySelector('.column-title');
+                if (columnTitle) {
+                    columnTitle.textContent = column.title;
+                }
+
+                // Clear and rebuild cards container
+                const cardsContainer = columnElement.querySelector('.cards-container');
+                if (cardsContainer) {
+                    cardsContainer.innerHTML = '';
+                    
+                    // Add all cards from storage
+                    column.cards.forEach(card => {
+                        const cardElement = createCardElement(card);
+                        cardsContainer.appendChild(cardElement);
+                    });
+                }
+            }
+        });
+
+        // Re-initialize drag and drop and event listeners
+        initializeDragAndDrop();
+        updateCardCounts();
+        
+        console.log('Board display refreshed successfully');
+    }
+
+    // Request board refresh on load to ensure sync with storage
+    function requestBoardRefresh() {
+        vscode.postMessage({
+            command: 'refreshBoard'
+        });
+    }
+
+    // Request refresh when the webview becomes visible again
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            console.log('Webview became visible, requesting board refresh');
+            requestBoardRefresh();
+        }
+    });
 })();
