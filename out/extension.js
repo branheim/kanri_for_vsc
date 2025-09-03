@@ -97,6 +97,9 @@ function createKanbanBoardWebview(context, boardName) {
             case 'deleteColumn':
                 handleDeleteColumn(panel, message.columnId);
                 break;
+            case 'reorderColumn':
+                handleReorderColumn(message.draggedColumnId, message.targetColumnId);
+                break;
         }
     }, undefined, context.subscriptions);
     vscode.window.showInformationMessage(`Kanban board "${boardName}" opened!`);
@@ -176,6 +179,28 @@ function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
             max-width: 350px;
             padding: 15px;
             flex-shrink: 0;
+            cursor: grab;
+            transition: all 0.2s ease;
+        }
+        
+        .column:active {
+            cursor: grabbing;
+        }
+        
+        .column.dragging {
+            opacity: 0.5;
+            transform: scale(0.95);
+            z-index: 1000;
+        }
+        
+        .column.drag-over {
+            border-left: 3px solid var(--vscode-focusBorder);
+            transform: translateX(5px);
+        }
+        
+        .kanban-board.dragging-column .column:not(.dragging) {
+            border-left: 2px dashed var(--vscode-panel-border);
+            transition: border-left 0.2s ease;
         }
         
         .column-header {
@@ -185,6 +210,12 @@ function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
             margin-bottom: 15px;
             padding-bottom: 10px;
             border-bottom: 1px solid var(--vscode-panel-border);
+            cursor: grab;
+            user-select: none;
+        }
+        
+        .column-header:active {
+            cursor: grabbing;
         }
         
         .column-title {
@@ -323,12 +354,14 @@ function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
             border-color: var(--vscode-focusBorder);
             color: var(--vscode-editor-foreground);
             background: var(--vscode-list-hoverBackground);
-        }        .card.dragging {
+        }
+        
+        .card.dragging {
             opacity: 0.5;
             transform: rotate(2deg);
         }
         
-        .column.drag-over {
+        .cards-container.drag-over {
             background: var(--vscode-list-hoverBackground);
         }
         
@@ -514,6 +547,11 @@ function handleDeleteColumn(panel, columnId) {
             vscode.window.showInformationMessage('Column deleted');
         }
     });
+}
+function handleReorderColumn(draggedColumnId, targetColumnId) {
+    logger.info(`Reordering column ${draggedColumnId} before ${targetColumnId}`);
+    // TODO: Update persistent storage when implemented
+    // For now, just log the reorder operation
 }
 /**
  * Extension deactivation - called when VS Code unloads the extension

@@ -93,6 +93,14 @@
     }
 
     function initializeDragAndDrop() {
+        // Initialize card drag and drop
+        initializeCardDragAndDrop();
+        
+        // Initialize column drag and drop
+        initializeColumnDragAndDrop();
+    }
+
+    function initializeCardDragAndDrop() {
         // Select ALL cards (existing and new) with correct class name
         const cards = document.querySelectorAll('.card');
         // Select ALL columns with correct class name  
@@ -103,77 +111,216 @@
             card.draggable = true;
             
             // Remove existing listeners to avoid duplicates
-            card.removeEventListener('dragstart', handleDragStart);
-            card.removeEventListener('dragend', handleDragEnd);
+            card.removeEventListener('dragstart', handleCardDragStart);
+            card.removeEventListener('dragend', handleCardDragEnd);
             
             // Add fresh listeners
-            card.addEventListener('dragstart', handleDragStart);
-            card.addEventListener('dragend', handleDragEnd);
+            card.addEventListener('dragstart', handleCardDragStart);
+            card.addEventListener('dragend', handleCardDragEnd);
         });
 
-        // Make columns drop targets
+        // Make columns drop targets for cards
         columns.forEach(column => {
             // Remove existing listeners to avoid duplicates
-            column.removeEventListener('dragover', handleDragOver);
-            column.removeEventListener('dragleave', handleDragLeave);
-            column.removeEventListener('drop', handleDrop);
+            column.removeEventListener('dragover', handleCardDragOver);
+            column.removeEventListener('dragleave', handleCardDragLeave);
+            column.removeEventListener('drop', handleCardDrop);
             
             // Add fresh listeners
-            column.addEventListener('dragover', handleDragOver);
-            column.addEventListener('dragleave', handleDragLeave);
-            column.addEventListener('drop', handleDrop);
+            column.addEventListener('dragover', handleCardDragOver);
+            column.addEventListener('dragleave', handleCardDragLeave);
+            column.addEventListener('drop', handleCardDrop);
         });
     }
 
-    // Drag event handlers
-    function handleDragStart(e) {
+    function initializeColumnDragAndDrop() {
+        // Select all columns except the add column button
+        const columns = document.querySelectorAll('.column[data-column]');
+        const kanbanBoard = document.getElementById('kanban-board');
+
+        // Make columns draggable
+        columns.forEach(column => {
+            column.draggable = true;
+            
+            // Remove existing listeners to avoid duplicates
+            column.removeEventListener('dragstart', handleColumnDragStart);
+            column.removeEventListener('dragend', handleColumnDragEnd);
+            column.removeEventListener('dragover', handleColumnDragOver);
+            column.removeEventListener('dragleave', handleColumnDragLeave);
+            column.removeEventListener('drop', handleColumnDrop);
+            
+            // Add fresh listeners
+            column.addEventListener('dragstart', handleColumnDragStart);
+            column.addEventListener('dragend', handleColumnDragEnd);
+            column.addEventListener('dragover', handleColumnDragOver);
+            column.addEventListener('dragleave', handleColumnDragLeave);
+            column.addEventListener('drop', handleColumnDrop);
+        });
+    }
+
+    // Card drag event handlers
+    function handleCardDragStart(e) {
+        // Stop propagation to prevent column drag
+        e.stopPropagation();
+        
         // Ensure card has an ID for drag operations
         if (!this.id) {
             this.id = this.getAttribute('data-card-id') || `temp-${Date.now()}`;
         }
         
-        e.dataTransfer.setData('text/plain', this.id);
+        e.dataTransfer.setData('text/plain', JSON.stringify({
+            type: 'card',
+            id: this.id
+        }));
         this.classList.add('dragging');
-        console.log('Drag started for card:', this.id);
+        console.log('Card drag started for card:', this.id);
     }
 
-    function handleDragEnd() {
+    function handleCardDragEnd() {
         this.classList.remove('dragging');
-        console.log('Drag ended for card:', this.id);
+        console.log('Card drag ended for card:', this.id);
     }
 
-    function handleDragOver(e) {
-        e.preventDefault();
-        this.classList.add('drag-over');
+    function handleCardDragOver(e) {
+        // Only allow card drops on cards containers
+        const dragData = e.dataTransfer.types.includes('text/plain');
+        if (dragData) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+        }
     }
 
-    function handleDragLeave() {
+    function handleCardDragLeave() {
         this.classList.remove('drag-over');
     }
 
-    function handleDrop(e) {
+    function handleCardDrop(e) {
         e.preventDefault();
         this.classList.remove('drag-over');
         
-        const cardId = e.dataTransfer.getData('text/plain');
-        const targetColumn = this.getAttribute('data-column');
-        
-        console.log('Card dropped:', cardId, 'to column:', targetColumn);
-        
-        if (cardId && targetColumn) {
-            // Move the card in the UI immediately
-            const cardElement = document.getElementById(cardId);
-            if (cardElement && cardElement.parentElement !== this) {
-                this.appendChild(cardElement);
-                updateCardCounts();
+        try {
+            const dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
+            
+            // Only handle card drops
+            if (dragData.type === 'card') {
+                const cardId = dragData.id;
+                const targetColumn = this.getAttribute('data-column');
                 
-                // Notify extension
-                vscode.postMessage({
-                    command: 'moveCard',
-                    cardId: cardId,
-                    targetColumn: targetColumn
-                });
+                console.log('Card dropped:', cardId, 'to column:', targetColumn);
+                
+                if (cardId && targetColumn) {
+                    // Move the card in the UI immediately
+                    const cardElement = document.getElementById(cardId);
+                    if (cardElement && cardElement.parentElement !== this) {
+                        this.appendChild(cardElement);
+                        updateCardCounts();
+                        
+                        // Notify extension
+                        vscode.postMessage({
+                            command: 'moveCard',
+                            cardId: cardId,
+                            targetColumn: targetColumn
+                        });
+                    }
+                }
             }
+        } catch (error) {
+            console.error('Error handling card drop:', error);
+        }
+    }
+
+    // Column drag event handlers
+    function handleColumnDragStart(e) {
+        // Prevent column drag if initiated from cards, buttons, or other interactive elements
+        if (e.target.classList.contains('card') || 
+            e.target.classList.contains('add-card-btn') ||
+            e.target.classList.contains('delete-card-btn') ||
+            e.target.classList.contains('delete-column-btn') ||
+            e.target.closest('.card') ||
+            e.target.closest('.add-card-btn')) {
+            e.preventDefault();
+            return false;
+        }
+        
+        const columnId = this.getAttribute('data-column');
+        e.dataTransfer.setData('text/plain', JSON.stringify({
+            type: 'column',
+            id: columnId
+        }));
+        this.classList.add('dragging');
+        
+        // Add visual feedback to the board
+        const kanbanBoard = document.getElementById('kanban-board');
+        if (kanbanBoard) {
+            kanbanBoard.classList.add('dragging-column');
+        }
+        
+        console.log('Column drag started for column:', columnId);
+    }
+
+    function handleColumnDragEnd() {
+        this.classList.remove('dragging');
+        
+        // Remove visual feedback from the board
+        const kanbanBoard = document.getElementById('kanban-board');
+        if (kanbanBoard) {
+            kanbanBoard.classList.remove('dragging-column');
+        }
+        
+        // Remove drag-over class from all columns
+        document.querySelectorAll('.column').forEach(col => {
+            col.classList.remove('drag-over');
+        });
+        console.log('Column drag ended');
+    }
+
+    function handleColumnDragOver(e) {
+        // Only allow column drops on columns
+        const dragData = e.dataTransfer.types.includes('text/plain');
+        if (dragData) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+        }
+    }
+
+    function handleColumnDragLeave() {
+        this.classList.remove('drag-over');
+    }
+
+    function handleColumnDrop(e) {
+        e.preventDefault();
+        this.classList.remove('drag-over');
+        
+        try {
+            const dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
+            
+            // Only handle column drops
+            if (dragData.type === 'column') {
+                const draggedColumnId = dragData.id;
+                const targetColumnId = this.getAttribute('data-column');
+                
+                console.log('Column dropped:', draggedColumnId, 'before column:', targetColumnId);
+                
+                if (draggedColumnId && targetColumnId && draggedColumnId !== targetColumnId) {
+                    // Find the dragged column element
+                    const draggedColumn = document.querySelector(`[data-column="${draggedColumnId}"]`);
+                    const kanbanBoard = document.getElementById('kanban-board');
+                    
+                    if (draggedColumn && kanbanBoard) {
+                        // Insert the dragged column before the target column
+                        kanbanBoard.insertBefore(draggedColumn, this);
+                        
+                        // Notify extension about the reorder
+                        vscode.postMessage({
+                            command: 'reorderColumn',
+                            draggedColumnId: draggedColumnId,
+                            targetColumnId: targetColumnId
+                        });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error handling column drop:', error);
         }
     }
 
@@ -280,6 +427,7 @@
             const columnDiv = document.createElement('div');
             columnDiv.className = 'column';
             columnDiv.setAttribute('data-column', columnId);
+            columnDiv.draggable = true;
             
             columnDiv.innerHTML = `
                 <div class="column-header">
