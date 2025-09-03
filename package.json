@@ -1,0 +1,67 @@
+{
+  "name": "kanri-for-vscode",
+  "displayName": "Kanri for VS Code",
+  "description": "A kanban board management extension for Visual Studio Code",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:kanri.createBoard",
+    "onCommand:kanri.openBoard"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "kanri.createBoard",
+        "title": "Create New Board",
+        "category": "Kanri"
+      },
+      {
+        "command": "kanri.openBoard",
+        "title": "Open Board",
+        "category": "Kanri"
+      },
+      {
+        "command": "kanri.addCard",
+        "title": "Add Card",
+        "category": "Kanri"
+      }
+    ],
+    "configuration": {
+      "title": "Kanri",
+      "properties": {
+        "kanri.defaultColumns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "To Do",
+            "In Progress",
+            "Done"
+          ],
+          "description": "Default columns for new kanban boards"
+        },
+        "kanri.autoSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically save board changes"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
+  }
+}
