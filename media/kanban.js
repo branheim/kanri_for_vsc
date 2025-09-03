@@ -48,63 +48,110 @@
         });
 
         // Board rename functionality
-        const boardTitle = document.querySelector('.board-title');
-        if (boardTitle) {
-            boardTitle.addEventListener('click', function() {
-                console.log('Board title clicked - enabling rename');
+        const renameButton = document.querySelector('.rename-button');
+        if (renameButton) {
+            renameButton.addEventListener('click', function() {
+                const boardTitle = document.querySelector('h1.board-title');
+                const currentName = boardTitle ? boardTitle.textContent : 'Untitled Board';
+                console.log('Rename button clicked - current name:', currentName);
                 
                 vscode.postMessage({
                     command: 'renameBoard',
-                    currentName: this.textContent
+                    currentName: currentName
                 });
             });
         }
     }
 
     function initializeDragAndDrop() {
-        const cards = document.querySelectorAll('.kanban-card');
-        const columns = document.querySelectorAll('.kanban-column');
+        // Select ALL cards (existing and new) with correct class name
+        const cards = document.querySelectorAll('.card');
+        // Select ALL columns with correct class name  
+        const columns = document.querySelectorAll('.cards-container');
 
         // Make cards draggable
         cards.forEach(card => {
             card.draggable = true;
             
-            card.addEventListener('dragstart', function(e) {
-                e.dataTransfer.setData('text/plain', this.id);
-                this.classList.add('dragging');
-            });
-
-            card.addEventListener('dragend', function() {
-                this.classList.remove('dragging');
-            });
+            // Remove existing listeners to avoid duplicates
+            card.removeEventListener('dragstart', handleDragStart);
+            card.removeEventListener('dragend', handleDragEnd);
+            
+            // Add fresh listeners
+            card.addEventListener('dragstart', handleDragStart);
+            card.addEventListener('dragend', handleDragEnd);
         });
 
         // Make columns drop targets
         columns.forEach(column => {
-            column.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                this.classList.add('drag-over');
-            });
+            // Remove existing listeners to avoid duplicates
+            column.removeEventListener('dragover', handleDragOver);
+            column.removeEventListener('dragleave', handleDragLeave);
+            column.removeEventListener('drop', handleDrop);
+            
+            // Add fresh listeners
+            column.addEventListener('dragover', handleDragOver);
+            column.addEventListener('dragleave', handleDragLeave);
+            column.addEventListener('drop', handleDrop);
+        });
+    }
 
-            column.addEventListener('dragleave', function() {
-                this.classList.remove('drag-over');
-            });
+    // Drag event handlers
+    function handleDragStart(e) {
+        e.dataTransfer.setData('text/plain', this.id);
+        this.classList.add('dragging');
+        console.log('Drag started for card:', this.id);
+    }
 
-            column.addEventListener('drop', function(e) {
-                e.preventDefault();
-                this.classList.remove('drag-over');
+    function handleDragEnd() {
+        this.classList.remove('dragging');
+        console.log('Drag ended for card:', this.id);
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        this.classList.add('drag-over');
+    }
+
+    function handleDragLeave() {
+        this.classList.remove('drag-over');
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        this.classList.remove('drag-over');
+        
+        const cardId = e.dataTransfer.getData('text/plain');
+        const targetColumn = this.getAttribute('data-column');
+        
+        console.log('Card dropped:', cardId, 'to column:', targetColumn);
+        
+        if (cardId && targetColumn) {
+            // Move the card in the UI immediately
+            const cardElement = document.getElementById(cardId);
+            if (cardElement && cardElement.parentElement !== this) {
+                this.appendChild(cardElement);
+                updateCardCounts();
                 
-                const cardId = e.dataTransfer.getData('text/plain');
-                const targetColumn = this.getAttribute('data-column');
-                
-                console.log('Card dropped:', cardId, 'to column:', targetColumn);
-                
+                // Notify extension
                 vscode.postMessage({
                     command: 'moveCard',
                     cardId: cardId,
                     targetColumn: targetColumn
                 });
-            });
+            }
+        }
+    }
+
+    // Update card counts in column headers
+    function updateCardCounts() {
+        document.querySelectorAll('.column').forEach(column => {
+            const cardsContainer = column.querySelector('.cards-container');
+            const cardCount = cardsContainer.children.length;
+            const countElement = column.querySelector('.card-count');
+            if (countElement) {
+                countElement.textContent = cardCount;
+            }
         });
     }
 
@@ -139,8 +186,13 @@
             const cardElement = createCardElement(card);
             columnElement.appendChild(cardElement);
             
-            // Re-initialize drag and drop for new card
+            // Re-initialize drag and drop for ALL cards (including new one)
             initializeDragAndDrop();
+            
+            // Update card counts
+            updateCardCounts();
+            
+            console.log('Card added to UI:', card.id, 'in column:', column);
         }
     }
 
@@ -148,13 +200,16 @@
         const cardElement = document.getElementById(cardId);
         if (cardElement) {
             cardElement.remove();
+            updateCardCounts();
+            console.log('Card removed from UI:', cardId);
         }
     }
 
     function updateBoardTitle(newName) {
-        const titleElement = document.querySelector('.board-title');
+        const titleElement = document.querySelector('h1.board-title');
         if (titleElement) {
             titleElement.textContent = newName;
+            console.log('Board title updated to:', newName);
         }
     }
 

@@ -296,7 +296,7 @@ function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
 <body>
     <div class="board-header">
         <h1 class="board-title">${boardName}</h1>
-        <button class="rename-button board-title" title="Rename board">✏️</button>
+        <button class="rename-button" title="Rename board">✏️</button>
     </div>
     
     <div class="kanban-board" id="kanban-board">
