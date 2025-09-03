@@ -9,6 +9,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.deactivate = exports.activate = void 0;
 const vscode = require("vscode");
 const logger_1 = require("./utils/logger");
+const boardManager_1 = require("./managers/boardManager");
+const configurationManager_1 = require("./utils/configurationManager");
 // Global logger instance
 const logger = new logger_1.Logger();
 /**
@@ -61,7 +63,30 @@ exports.activate = activate;
  * Creates and displays a visual Kanban board using Microsoft's proven webview pattern
  * Uses external JavaScript files, proper CSP, and nonce-based security
  */
-function createKanbanBoardWebview(context, boardName) {
+async function createKanbanBoardWebview(context, boardName) {
+    // Initialize managers
+    const logger = new logger_1.Logger();
+    const configManager = new configurationManager_1.ConfigurationManager();
+    const boardManager = new boardManager_1.BoardManager(context, configManager, logger);
+    // Initialize workspace
+    await boardManager.initializeWorkspace();
+    // Try to load existing board or create a new one
+    let board;
+    try {
+        const boards = await boardManager.getAllBoards();
+        const existingBoard = boards.find((b) => b.name === boardName);
+        if (existingBoard) {
+            board = existingBoard;
+        }
+        else {
+            // Create new board with empty columns
+            board = await boardManager.createBoard({ name: boardName });
+        }
+    }
+    catch (error) {
+        // If board loading fails, create a new one
+        board = await boardManager.createBoard({ name: boardName });
+    }
     // Create webview panel with proper options following Microsoft's pattern
     const panel = vscode.window.createWebviewPanel('kanriBoard', `Kanri Board: ${boardName}`, vscode.ViewColumn.One, {
         enableScripts: true,
@@ -75,7 +100,7 @@ function createKanbanBoardWebview(context, boardName) {
     // Get URIs for external resources
     const scriptUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'kanban.js'));
     // Set webview HTML content with Microsoft's CSP and external script pattern
-    panel.webview.html = getKanbanBoardHTML(boardName, panel.webview, nonce, scriptUri);
+    panel.webview.html = getKanbanBoardHTML(board, panel.webview, nonce, scriptUri);
     // Handle messages from webview
     panel.webview.onDidReceiveMessage(message => {
         switch (message.command) {
@@ -107,14 +132,63 @@ function createKanbanBoardWebview(context, boardName) {
 /**
  * Generates HTML for the Kanban board interface using Microsoft's security pattern
  */
-function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
+/**
+ * Helper function to generate HTML for columns and cards based on board data
+ */
+function generateColumnsHTML(board) {
+    return board.columns.map(column => {
+        const cardsHTML = column.cards.map(card => `
+            <div class="card" draggable="true" data-card-id="${card.id}" id="${card.id}">
+                <div class="card-actions">
+                    <button class="delete-card-btn" data-card-id="${card.id}">&times;</button>
+                </div>
+                <div class="card-title">${escapeHtml(card.title)}</div>
+                <div class="card-description">${escapeHtml(card.description || '')}</div>
+            </div>
+        `).join('');
+        // Create a safe column ID for HTML attributes
+        const safeColumnId = column.id.replace(/[^a-zA-Z0-9-_]/g, '');
+        return `
+            <div class="column" data-column="${safeColumnId}">
+                <div class="column-header">
+                    <span class="column-title">${escapeHtml(column.title)}</span>
+                    <div class="column-actions">
+                        <span class="card-count">${column.cards.length}</span>
+                        <button class="delete-column-btn" data-column="${safeColumnId}" title="Delete column">&times;</button>
+                    </div>
+                </div>
+                <div class="cards-container" id="${safeColumnId}-cards" data-column="${safeColumnId}">
+                    ${cardsHTML}
+                </div>
+                <div class="add-card-btn" data-column="${safeColumnId}">+ Add a card</div>
+            </div>
+        `;
+    }).join('');
+}
+/**
+ * Helper function to escape HTML characters for security
+ */
+function escapeHtml(text) {
+    if (!text)
+        return '';
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+/**
+ * Generate HTML for kanban board webview using board data
+ */
+function getKanbanBoardHTML(board, webview, nonce, scriptUri) {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
-    <title>Kanri Board: ${boardName}</title>
+    <title>Kanri Board: ${board.name}</title>
     <style>
         * {
             margin: 0;
@@ -379,78 +453,12 @@ function getKanbanBoardHTML(boardName, webview, nonce, scriptUri) {
 </head>
 <body>
     <div class="board-header">
-        <h1 class="board-title">${boardName}</h1>
+        <h1 class="board-title">${board.name}</h1>
         <button class="rename-button" title="Rename board">✏️</button>
     </div>
     
     <div class="kanban-board" id="kanban-board">
-        <div class="column" data-column="todo">
-            <div class="column-header">
-                <span class="column-title">To Do</span>
-                <div class="column-actions">
-                    <span class="card-count">2</span>
-                    <button class="delete-column-btn" data-column="todo" title="Delete column">&times;</button>
-                </div>
-            </div>
-            <div class="cards-container" id="todo-cards" data-column="todo">
-                <div class="card" draggable="true" data-card-id="1" id="1">
-                    <div class="card-actions">
-                        <button class="delete-card-btn" data-card-id="1">&times;</button>
-                    </div>
-                    <div class="card-title">Design new feature</div>
-                    <div class="card-description">Create mockups and wireframes for the new dashboard feature</div>
-                </div>
-                <div class="card" draggable="true" data-card-id="2" id="2">
-                    <div class="card-actions">
-                        <button class="delete-card-btn" data-card-id="2">&times;</button>
-                    </div>
-                    <div class="card-title">Write documentation</div>
-                    <div class="card-description">Update API documentation with new endpoints</div>
-                </div>
-            </div>
-            <div class="add-card-btn" data-column="todo">+ Add a card</div>
-        </div>
-        
-        <div class="column" data-column="inprogress">
-            <div class="column-header">
-                <span class="column-title">In Progress</span>
-                <div class="column-actions">
-                    <span class="card-count">1</span>
-                    <button class="delete-column-btn" data-column="inprogress" title="Delete column">&times;</button>
-                </div>
-            </div>
-            <div class="cards-container" id="inprogress-cards" data-column="inprogress">
-                <div class="card" draggable="true" data-card-id="3" id="3">
-                    <div class="card-actions">
-                        <button class="delete-card-btn" data-card-id="3">&times;</button>
-                    </div>
-                    <div class="card-title">Implement authentication</div>
-                    <div class="card-description">Add OAuth integration and JWT token handling</div>
-                </div>
-            </div>
-            <div class="add-card-btn" data-column="inprogress">+ Add a card</div>
-        </div>
-        
-        <div class="column" data-column="done">
-            <div class="column-header">
-                <span class="column-title">Done</span>
-                <div class="column-actions">
-                    <span class="card-count">1</span>
-                    <button class="delete-column-btn" data-column="done" title="Delete column">&times;</button>
-                </div>
-            </div>
-            <div class="cards-container" id="done-cards" data-column="done">
-                <div class="card" draggable="true" data-card-id="4" id="4">
-                    <div class="card-actions">
-                        <button class="delete-card-btn" data-card-id="4">&times;</button>
-                    </div>
-                    <div class="card-title">Setup project structure</div>
-                    <div class="card-description">Initialize repository and configure build tools</div>
-                </div>
-            </div>
-            <div class="add-card-btn" data-column="done">+ Add a card</div>
-        </div>
-        
+        ${generateColumnsHTML(board)}
         <div class="add-column-btn" id="add-column-btn">+ Add Column</div>
     </div>
 

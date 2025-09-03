@@ -1,6 +1,22 @@
-# Kanri for VS Code - Extension Scaffold
+# Kanri for VS Code
 
-A comprehensive VS Code extension that brings kanban board functionality directly into your development workflow. This scaffold demonstrates best practices for building modular, type-safe VS Code extensions with extensive inline documentation.
+A comprehensive VS Code extension that brings kanban board functionality directly into your development workflow. Manage tasks, track progress, and organize your work without leaving your editor.
+
+## ✨ Features
+
+- **Visual Kanban Boards**: Create and manage kanban boards with drag-and-drop functionality
+- **Card Management**: Add, edit, move, and delete cards with rich metadata
+- **Column Management**: Create, delete, and reorder columns to fit your workflow
+- **Drag & Drop**: Intuitive drag-and-drop for both cards and columns
+- **Persistent Storage**: Boards are saved in your workspace's `.kanri` directory
+- **Auto-save**: Changes are automatically saved as you work
+- **VS Code Integration**: Fully integrated with VS Code's theming and command palette
+
+## 🎯 Inspiration
+
+This extension was inspired by [Kanri](https://github.com/trobonox/kanri), an excellent standalone kanban application. While this VS Code extension is a completely independent implementation using TypeScript and the VS Code Extension API, we credit the original Kanri project for the inspiration and design concepts that guided this development.
+
+**Note**: This is not a port or fork of the original Kanri software. It's a fresh implementation built specifically for VS Code using Microsoft's webview patterns and extension APIs.
 
 ## 🏗️ Architecture Overview
 
@@ -357,6 +373,16 @@ export class ExampleClass {
 - [Kanban Guide](https://www.atlassian.com/agile/kanban)
 - [Lean and Kanban](https://leankit.com/learn/kanban/)
 
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+This extension was inspired by [Kanri](https://github.com/trobonox/kanri), an excellent standalone kanban application created by trobonox. While this VS Code extension is a completely independent implementation using TypeScript and the VS Code Extension API, we acknowledge and appreciate the original Kanri project for the inspiration and design concepts that guided this development.
+
+**Important**: This is not a port, fork, or derivative work of the original Kanri software. It's a fresh, independent implementation built specifically for VS Code using Microsoft's official extension patterns and APIs. No code from the original Kanri project was used in this implementation.
+
 ## 🤝 Contributing
 
 This scaffold serves as a reference implementation. When adapting for your own projects:
@@ -367,10 +393,6 @@ This scaffold serves as a reference implementation. When adapting for your own p
 4. **Consider Accessibility**: Ensure inclusive user experience
 5. **Plan for Scale**: Design with future feature additions in mind
 
-## 📄 License
-
-MIT License - See LICENSE file for details
-
 ---
 
-**Note**: This scaffold prioritizes educational value and maintainability over minimal code size. Every component is thoroughly documented to facilitate learning and future development.
+**Note**: This extension prioritizes functionality and maintainability. Every component is thoroughly documented to facilitate learning and future development.

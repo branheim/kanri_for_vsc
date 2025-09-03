@@ -3,6 +3,20 @@
   "displayName": "Kanri for VS Code",
   "description": "A kanban board management extension for Visual Studio Code",
   "version": "0.1.0",
+  "publisher": "bheimbigner",
+  "license": "MIT",
+  "author": {
+    "name": "Brandon Heimbigner",
+    "email": "bheimbigner@icloud.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bheimbigner/kanri-for-vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bheimbigner/kanri-for-vscode/issues"
+  },
+  "homepage": "https://github.com/bheimbigner/kanri-for-vscode#readme",
   "engines": {
     "vscode": "^1.74.0"
   },
