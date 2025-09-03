@@ -7,9 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-09-03
+
+### Fixed
+
+- **Critical persistence issue**: User customizations (cards, columns, board names) now properly save between VS Code reloads
+- Enhanced storage integration ensuring all board operations persist to workspaceState
+- Improved webview-extension synchronization for reliable data consistency
+
+### Enhanced
+
+- Added comprehensive async message handlers with proper error handling
+- Implemented board refresh functionality for data synchronization
+- Enhanced user feedback with success/failure indicators for all operations
+- Improved robustness of card operations with input validation
+- Added automatic board refresh when extension regains focus
+
+### Technical
+
+- Upgraded message handling system with async/await patterns
+- Enhanced bidirectional communication between webview and extension
+- Improved error handling with graceful degradation
+- Added comprehensive logging for debugging persistence operations
+
 ## [0.1.0] - 2025-09-03
 
 ### Added
+
 - Initial release of Kanri for VS Code
 - Visual kanban board creation and management
 - Card creation, editing, and deletion
