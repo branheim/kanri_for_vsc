@@ -1,0 +1,24 @@
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simplified kanban board icon -->
+  <g fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round">
+    <!-- Board outline -->
+    <rect x="1.5" y="2.5" width="13" height="11" rx="1"/>
+    
+    <!-- Column dividers -->
+    <line x1="5.5" y1="3" x2="5.5" y2="13"/>
+    <line x1="10.5" y1="3" x2="10.5" y2="13"/>
+    
+    <!-- Cards represented as simple lines -->
+    <line x1="2.5" y1="5" x2="4.5" y2="5"/>
+    <line x1="2.5" y1="6.5" x2="4.5" y2="6.5"/>
+    <line x1="2.5" y1="8" x2="4.5" y2="8"/>
+    
+    <line x1="6.5" y1="5" x2="9.5" y2="5"/>
+    <line x1="6.5" y1="6.5" x2="9.5" y2="6.5"/>
+    
+    <line x1="11.5" y1="5" x2="13.5" y2="5"/>
+    <line x1="11.5" y1="6.5" x2="13.5" y2="6.5"/>
+    <line x1="11.5" y1="8" x2="13.5" y2="8"/>
+    <line x1="11.5" y1="9.5" x2="13.5" y2="9.5"/>
+  </g>
+</svg>

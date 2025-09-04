@@ -1,0 +1,29 @@
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- Modern Kanban board representation with three columns -->
+  <g fill="currentColor">
+    <!-- Column headers -->
+    <rect x="1" y="2" width="4" height="1" fill="currentColor" opacity="0.8"/>
+    <rect x="6" y="2" width="4" height="1" fill="currentColor" opacity="0.8"/>
+    <rect x="11" y="2" width="4" height="1" fill="currentColor" opacity="0.8"/>
+    
+    <!-- Column dividers -->
+    <rect x="5.25" y="1" width="0.5" height="14" fill="currentColor" opacity="0.3"/>
+    <rect x="10.25" y="1" width="0.5" height="14" fill="currentColor" opacity="0.3"/>
+    
+    <!-- Kanban cards -->
+    <!-- Column 1 cards -->
+    <rect x="1.5" y="4" width="3" height="1.5" fill="currentColor" opacity="0.7" rx="0.2"/>
+    <rect x="1.5" y="6" width="3" height="1.5" fill="currentColor" opacity="0.7" rx="0.2"/>
+    <rect x="1.5" y="8" width="3" height="1.5" fill="currentColor" opacity="0.7" rx="0.2"/>
+    
+    <!-- Column 2 cards -->
+    <rect x="6.5" y="4" width="3" height="1.5" fill="currentColor" opacity="0.6" rx="0.2"/>
+    <rect x="6.5" y="6.5" width="3" height="1.5" fill="currentColor" opacity="0.6" rx="0.2"/>
+    
+    <!-- Column 3 cards -->
+    <rect x="11.5" y="4" width="3" height="1.5" fill="currentColor" opacity="0.5" rx="0.2"/>
+    <rect x="11.5" y="7" width="3" height="1.5" fill="currentColor" opacity="0.5" rx="0.2"/>
+    <rect x="11.5" y="10" width="3" height="1.5" fill="currentColor" opacity="0.5" rx="0.2"/>
+    <rect x="11.5" y="12.5" width="3" height="1.5" fill="currentColor" opacity="0.5" rx="0.2"/>
+  </g>
+</svg>
