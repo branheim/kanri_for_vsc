@@ -89,6 +89,12 @@
         "title": "Refresh Boards",
         "category": "Kanri",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "kanri.deleteBoard",
+        "title": "Delete Board",
+        "category": "Kanri",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -107,8 +113,13 @@
       "view/item/context": [
         {
           "command": "kanri.openBoard",
-          "when": "view == kanri.boardsView && viewItem == board",
+          "when": "view == kanri.boardsView && viewItem == kanriBoard",
           "group": "inline"
+        },
+        {
+          "command": "kanri.deleteBoard",
+          "when": "view == kanri.boardsView && viewItem == kanriBoard",
+          "group": "management"
         }
       ]
     },

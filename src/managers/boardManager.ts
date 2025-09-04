@@ -328,6 +328,27 @@ export class BoardManager {
   }
 
   /**
+   * Delete a board by ID
+   * Removes the board file and clears it from cache
+   * 
+   * @param boardId - Unique identifier for the board to delete
+   */
+  async deleteBoard(boardId: string): Promise<void> {
+    try {
+      // Remove from file system
+      await this.fileStorage.deleteBoard(boardId);
+      
+      // Remove from cache
+      this.loadedBoards.delete(boardId);
+      
+      this.logger.info(`Board deleted: ${boardId}`);
+    } catch (error) {
+      this.logger.error(`Error deleting board ${boardId}: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
    * Update configuration settings
    * Called when user changes extension settings
    */

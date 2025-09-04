@@ -32,7 +32,7 @@
                 console.log('Add card clicked for column:', column);
                 
                 vscode.postMessage({
-                    command: 'addCard',
+                    type: 'addCard',
                     column: column
                 });
             });
@@ -45,38 +45,35 @@
                 console.log('Delete card clicked for card:', cardId);
                 
                 vscode.postMessage({
-                    command: 'deleteCard',
+                    type: 'deleteCard',
                     cardId: cardId
                 });
             }
         });
 
         // Board rename functionality
-        const renameButton = document.querySelector('.rename-button');
-        if (renameButton) {
-            renameButton.addEventListener('click', function() {
-                const boardTitle = document.querySelector('h1.board-title');
-                const currentName = boardTitle ? boardTitle.textContent : 'Untitled Board';
-                console.log('Rename button clicked - current name:', currentName);
+        const boardTitle = document.querySelector('.board-title');
+        if (boardTitle) {
+            boardTitle.addEventListener('click', function() {
+                console.log('Board title clicked for rename');
                 
                 vscode.postMessage({
-                    command: 'renameBoard',
-                    currentName: currentName
+                    type: 'renameBoard',
+                    currentName: this.textContent
                 });
             });
         }
 
-        // Add column button
-        const addColumnButton = document.getElementById('add-column-btn');
-        if (addColumnButton) {
-            addColumnButton.addEventListener('click', function() {
+        // Add column functionality  
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('add-column-btn')) {
                 console.log('Add column clicked');
                 
                 vscode.postMessage({
-                    command: 'addColumn'
+                    type: 'addColumn'
                 });
-            });
-        }
+            }
+        });
 
         // Delete column buttons
         document.addEventListener('click', function(e) {
@@ -85,8 +82,24 @@
                 console.log('Delete column clicked for column:', columnId);
                 
                 vscode.postMessage({
-                    command: 'deleteColumn',
+                    type: 'deleteColumn',
                     columnId: columnId
+                });
+            }
+        });
+
+        // Column title rename functionality
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('column-title')) {
+                const columnHeader = e.target.closest('.column-header');
+                const column = columnHeader.closest('.column');
+                const columnId = column.getAttribute('data-column');
+                console.log('Column title clicked for rename:', columnId);
+                
+                vscode.postMessage({
+                    type: 'renameColumn',
+                    columnId: columnId,
+                    currentTitle: e.target.textContent
                 });
             }
         });
@@ -205,21 +218,55 @@
             if (dragData.type === 'card') {
                 const cardId = dragData.id;
                 const targetColumn = this.getAttribute('data-column');
+                const cardElement = document.getElementById(cardId);
                 
                 console.log('Card dropped:', cardId, 'to column:', targetColumn);
                 
-                if (cardId && targetColumn) {
+                if (cardId && targetColumn && cardElement) {
+                    const sourceColumn = cardElement.closest('.cards-container');
+                    const sourceColumnId = sourceColumn ? sourceColumn.getAttribute('data-column') : null;
+                    
+                    // Determine drop position
+                    const dropPosition = calculateDropPosition(e, this);
+                    
                     // Move the card in the UI immediately
-                    const cardElement = document.getElementById(cardId);
-                    if (cardElement && cardElement.parentElement !== this) {
-                        this.appendChild(cardElement);
+                    if (sourceColumn !== this || dropPosition !== -1) {
+                        // Remove from current position
+                        cardElement.remove();
+                        
+                        // Insert at new position
+                        if (dropPosition === -1) {
+                            // Append to end (before add button)
+                            const addButton = this.querySelector('.add-card-btn');
+                            if (addButton) {
+                                this.insertBefore(cardElement, addButton);
+                            } else {
+                                this.appendChild(cardElement);
+                            }
+                        } else {
+                            // Insert at specific position
+                            const cards = Array.from(this.querySelectorAll('.card'));
+                            if (dropPosition >= cards.length) {
+                                const addButton = this.querySelector('.add-card-btn');
+                                if (addButton) {
+                                    this.insertBefore(cardElement, addButton);
+                                } else {
+                                    this.appendChild(cardElement);
+                                }
+                            } else {
+                                this.insertBefore(cardElement, cards[dropPosition]);
+                            }
+                        }
+                        
                         updateCardCounts();
                         
-                        // Notify extension
+                        // Notify extension with position info
                         vscode.postMessage({
-                            command: 'moveCard',
+                            type: 'moveCard',
                             cardId: cardId,
-                            targetColumn: targetColumn
+                            targetColumn: targetColumn,
+                            sourceColumn: sourceColumnId,
+                            position: dropPosition === -1 ? Array.from(this.querySelectorAll('.card')).length - 1 : dropPosition
                         });
                     }
                 }
@@ -227,6 +274,27 @@
         } catch (error) {
             console.error('Error handling card drop:', error);
         }
+    }
+
+    // Calculate drop position based on mouse position
+    function calculateDropPosition(e, container) {
+        const cards = Array.from(container.querySelectorAll('.card'));
+        if (cards.length === 0) return 0;
+        
+        const rect = container.getBoundingClientRect();
+        const mouseY = e.clientY - rect.top;
+        
+        for (let i = 0; i < cards.length; i++) {
+            const cardRect = cards[i].getBoundingClientRect();
+            const cardY = cardRect.top - rect.top;
+            const cardMidY = cardY + (cardRect.height / 2);
+            
+            if (mouseY < cardMidY) {
+                return i;
+            }
+        }
+        
+        return -1; // Append to end
     }
 
     // Column drag event handlers
@@ -312,7 +380,7 @@
                         
                         // Notify extension about the reorder
                         vscode.postMessage({
-                            command: 'reorderColumn',
+                            type: 'reorderColumn',
                             draggedColumnId: draggedColumnId,
                             targetColumnId: targetColumnId
                         });
@@ -328,7 +396,7 @@
     function updateCardCounts() {
         document.querySelectorAll('.column').forEach(column => {
             const cardsContainer = column.querySelector('.cards-container');
-            const cardCount = cardsContainer.children.length;
+            const cardCount = cardsContainer.querySelectorAll('.card').length; // Only count actual cards, not buttons
             const countElement = column.querySelector('.card-count');
             if (countElement) {
                 countElement.textContent = cardCount;
