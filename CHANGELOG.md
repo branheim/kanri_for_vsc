@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-09-03
+
+### Added
+
+- **Sidebar integration**: Added proper activity bar icon and view for seamless VS Code integration
+- **Boards view**: New sidebar panel showing all kanban boards with click-to-open functionality
+- **Enhanced navigation**: Refresh boards command and improved board management UI
+
+### Improved
+
+- **Activity bar icon**: Redesigned icon following Microsoft's VS Code design guidelines
+- **User experience**: Professional sidebar presence with board listing and management
+- **Icon design**: Simplified, theme-adaptive SVG icon that scales properly at all sizes
+
+### Technical
+
+- Added TreeDataProvider for boards view in sidebar
+- Implemented proper viewsContainers and views contribution points
+- Created activity-bar-simple.svg following VS Code icon standards
+- Enhanced command integration with sidebar functionality
+
 ## [0.1.1] - 2025-09-03
 
 ### Fixed
