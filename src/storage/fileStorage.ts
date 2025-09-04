@@ -1,7 +1,21 @@
 /**
  * Enhanced Storage System Following Microsoft VS Code Best Practices
  * 
- * Microsoft recommends using ExtensionContext.storageUri for workspace-specific
+ * Microsoft recommends using Extensi## What's stored here:
+- Board configurations (name, description, creation date)
+- Column definitions (titles, order, card counts)
+- Individual cards (content, metadata, timestamps)
+
+## Version Control:
+- **COMMIT THESE FILES** to track your project's progress over time
+- Share board state with your team by committing to your repository
+- Board history becomes part of your project history
+
+## File Format:
+JSON files with structured kanban data. Each board is stored as a separate 
+.kanri file with complete state information for easy backup and synchronization.
+
+## Troubleshooting:eUri for workspace-specific
  * extension data instead of creating custom directories in the workspace.
  * 
  * Key Improvements:

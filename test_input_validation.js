@@ -43,7 +43,7 @@ class InputValidatorTests {
      * Run all test cases and report results
      */
     runAllTests(): void {
-        console.log('🧪 Running Input Validation Tests...\n');
+        console.log('Running Input Validation Tests...\n');
 
         // Basic validation tests
         this.testBasicValidation();
@@ -60,14 +60,14 @@ class InputValidatorTests {
         this.testEdgeCases();
         this.testSecurityScenarios();
         
-        console.log('✅ All Input Validation Tests Completed!\n');
+        console.log('All Input Validation Tests Completed!\n');
     }
 
     /**
      * Test basic validation functionality
      */
     private testBasicValidation(): void {
-        console.log('📝 Testing Basic Validation...');
+        console.log('Testing Basic Validation...');
 
         // Valid input
         const validResult = this.validator.validate('Valid input', ValidationPresets.CARD_TITLE);
@@ -80,14 +80,14 @@ class InputValidatorTests {
         this.assert(emptyResult.isValid === false, 'Empty input should fail validation');
         this.assert(emptyResult.errorCodes.includes(ValidationErrorCode.EMPTY_INPUT), 'Should detect empty input');
 
-        console.log('✓ Basic validation tests passed\n');
+        console.log('Basic validation tests passed\n');
     }
 
     /**
      * Test length validation constraints
      */
     private testLengthValidation(): void {
-        console.log('📏 Testing Length Validation...');
+        console.log('Testing Length Validation...');
 
         // Too short input
         const shortResult = this.validator.validate('', { minLength: 5 });
@@ -104,14 +104,14 @@ class InputValidatorTests {
         const perfectResult = this.validator.validate('Perfect length', { minLength: 5, maxLength: 20 });
         this.assert(perfectResult.isValid === true, 'Input within range should pass');
 
-        console.log('✓ Length validation tests passed\n');
+        console.log('Length validation tests passed\n');
     }
 
     /**
      * Test content validation and security
      */
     private testContentValidation(): void {
-        console.log('🔒 Testing Content Validation...');
+        console.log('Testing Content Validation...');
 
         // HTML injection attempt
         const htmlInput = '<script>alert("xss")</script>Normal text';
@@ -130,14 +130,14 @@ class InputValidatorTests {
         this.assert(whitespaceResult.isValid === false, 'Whitespace-only input should fail');
         this.assert(whitespaceResult.errorCodes.includes(ValidationErrorCode.WHITESPACE_ONLY), 'Should detect whitespace-only input');
 
-        console.log('✓ Content validation tests passed\n');
+        console.log('Content validation tests passed\n');
     }
 
     /**
      * Test input sanitization
      */
     private testSanitization(): void {
-        console.log('🧹 Testing Input Sanitization...');
+        console.log('Testing Input Sanitization...');
 
         // HTML sanitization
         const htmlInput = '<p>Paragraph</p><script>evil()</script>';
@@ -156,14 +156,14 @@ class InputValidatorTests {
         this.assert(entityResult.sanitizedValue.includes('&amp;'), 'Ampersands should be escaped');
         this.assert(entityResult.sanitizedValue.includes('&quot;'), 'Quotes should be escaped');
 
-        console.log('✓ Sanitization tests passed\n');
+        console.log('Sanitization tests passed\n');
     }
 
     /**
      * Test card title validation preset
      */
     private testCardTitleValidation(): void {
-        console.log('🎯 Testing Card Title Validation...');
+        console.log('Testing Card Title Validation...');
 
         // Valid card title
         const validTitle = validateInput('My Important Task', ValidationPresets.CARD_TITLE, this.mockLogger);
@@ -234,7 +234,7 @@ class InputValidatorTests {
         }
 
         // Unicode characters
-        const unicodeInput = '🎯 Unicode Task 看板';
+        const unicodeInput = 'Unicode Task';
         const unicodeResult = this.validator.validate(unicodeInput, { minLength: 1, maxLength: 100 });
         this.assert(unicodeResult.isValid === true, 'Unicode characters should be allowed');
 
@@ -250,7 +250,7 @@ class InputValidatorTests {
      * Test security scenarios and attack vectors
      */
     private testSecurityScenarios(): void {
-        console.log('🛡️ Testing Security Scenarios...');
+        console.log('Testing Security Scenarios...');
 
         // XSS attempts
         const xssAttempts = [

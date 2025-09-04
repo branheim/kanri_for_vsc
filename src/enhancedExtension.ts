@@ -417,7 +417,7 @@ function getWebviewContent(webview: vscode.Webview, board: import('./config/defa
     </div>
     
     <div class="placeholder">
-        <p>🚧 Interactive Kanban Board Coming Soon! 🚧</p>
+        <p>Interactive Kanban Board Coming Soon!</p>
         <p>This enhanced webview will include:</p>
         <ul style="text-align: left; display: inline-block;">
             <li>Drag & drop card management</li>
