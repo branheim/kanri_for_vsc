@@ -2,7 +2,7 @@
   "name": "kanri-for-vscode",
   "displayName": "Kanri for VS Code",
   "description": "Visual Kanban boards for project management directly in VS Code. Create, manage, and organize tasks with drag-and-drop cards and customizable columns.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "BrandonHeimbigner",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -28,12 +28,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/bheimbigner/kanri-for-vscode.git"
+    "url": "https://github.com/branheim/kanri_for_vsc.git"
   },
   "bugs": {
-    "url": "https://github.com/bheimbigner/kanri-for-vscode/issues"
+    "url": "https://github.com/branheim/kanri_for_vsc/issues"
   },
-  "homepage": "https://github.com/bheimbigner/kanri-for-vscode#readme",
+  "homepage": "https://github.com/branheim/kanri_for_vsc#readme",
   "engines": {
     "vscode": "^1.74.0"
   },

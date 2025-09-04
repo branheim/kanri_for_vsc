@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2025-09-03
+
+### Fixed
+
+- **Repository links**: Updated all GitHub repository links to point to correct repository
+- **Marketplace integration**: Extension page now shows proper source code and issues links
+- **Developer experience**: Users can now properly report issues and contribute to the project
+
+### Changed
+
+- Repository URL: Updated from `bheimbigner/kanri-for-vscode` to `branheim/kanri_for_vsc`
+- Issues URL: Now points to correct GitHub issues page
+- Homepage URL: Updated to match actual repository location
+
 ## [0.1.2] - 2025-09-03
 
 ### Added
