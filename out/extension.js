@@ -50,8 +50,8 @@ function activate(context) {
                 placeHolder: 'My Project Board'
             });
             if (boardName) {
-                // Create and show the visual kanban board
-                createKanbanBoardWebview(context, boardName);
+                // Create and show the visual kanban board using shared boardManager
+                await createKanbanBoardWebview(context, boardName, boardManager);
                 // Refresh the boards view to show the new board
                 boardsViewProvider.refresh();
             }
@@ -68,7 +68,7 @@ function activate(context) {
                 const boards = await boardManager.getAllBoards();
                 const board = boards.find((b) => b.id === boardId);
                 if (board) {
-                    createKanbanBoardWebview(context, board.name);
+                    await createKanbanBoardWebview(context, board.name, boardManager);
                 }
                 else {
                     vscode.window.showErrorMessage(`Board not found: ${boardId}`);
@@ -90,7 +90,7 @@ function activate(context) {
                     placeHolder: 'Select a board to open'
                 });
                 if (selected) {
-                    createKanbanBoardWebview(context, selected.board.name);
+                    await createKanbanBoardWebview(context, selected.board.name, boardManager);
                 }
             }
         }
@@ -106,13 +106,9 @@ exports.activate = activate;
  * Creates and displays a visual Kanban board using Microsoft's proven webview pattern
  * Uses external JavaScript files, proper CSP, and nonce-based security
  */
-async function createKanbanBoardWebview(context, boardName) {
-    // Initialize managers
-    const logger = new logger_1.Logger();
-    const configManager = new configurationManager_1.ConfigurationManager();
-    const boardManager = new boardManager_1.BoardManager(context, configManager, logger);
+async function createKanbanBoardWebview(context, boardName, boardManager) {
     // Initialize card storage with Microsoft patterns
-    const cardStorage = (0, cardStorage_1.createCardStorage)(context, logger);
+    const cardStorage = (0, cardStorage_1.createCardStorage)(context, new logger_1.Logger());
     // Initialize workspace
     await boardManager.initializeWorkspace();
     // Try to load existing board or create a new one

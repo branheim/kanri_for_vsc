@@ -8,6 +8,7 @@ export class BoardsViewProvider implements vscode.TreeDataProvider<BoardItem> {
     constructor(private boardManager: BoardManager) {}
 
     refresh(): void {
+        console.log('BoardsViewProvider: Refresh called');
         this._onDidChangeTreeData.fire();
     }
 
@@ -25,15 +26,23 @@ export class BoardsViewProvider implements vscode.TreeDataProvider<BoardItem> {
 
     private async getBoardItems(): Promise<BoardItem[]> {
         try {
+            console.log('BoardsViewProvider: Getting boards...');
             const boards = await this.boardManager.getAllBoards();
+            console.log(`BoardsViewProvider: Found ${boards.length} boards:`, boards.map(b => ({ id: b.id, name: b.name })));
+            
+            if (boards.length === 0) {
+                console.log('BoardsViewProvider: No boards found, showing placeholder');
+                return [new BoardItem('No boards found', '', vscode.TreeItemCollapsibleState.None)];
+            }
+            
             return boards.map(board => new BoardItem(
                 board.name,
                 board.id,
                 vscode.TreeItemCollapsibleState.None
             ));
         } catch (error) {
-            console.error('Error getting boards:', error);
-            return [];
+            console.error('BoardsViewProvider: Error getting boards:', error);
+            return [new BoardItem('Error loading boards', '', vscode.TreeItemCollapsibleState.None)];
         }
     }
 }

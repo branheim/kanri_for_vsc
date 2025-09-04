@@ -59,8 +59,8 @@ export function activate(context: vscode.ExtensionContext) {
             });
 
             if (boardName) {
-                // Create and show the visual kanban board
-                createKanbanBoardWebview(context, boardName);
+                // Create and show the visual kanban board using shared boardManager
+                await createKanbanBoardWebview(context, boardName, boardManager);
                 // Refresh the boards view to show the new board
                 boardsViewProvider.refresh();
             }
@@ -77,7 +77,7 @@ export function activate(context: vscode.ExtensionContext) {
                 const boards = await boardManager.getAllBoards();
                 const board = boards.find((b: KanbanBoard) => b.id === boardId);
                 if (board) {
-                    createKanbanBoardWebview(context, board.name);
+                    await createKanbanBoardWebview(context, board.name, boardManager);
                 } else {
                     vscode.window.showErrorMessage(`Board not found: ${boardId}`);
                 }
@@ -100,7 +100,7 @@ export function activate(context: vscode.ExtensionContext) {
                 });
                 
                 if (selected) {
-                    createKanbanBoardWebview(context, selected.board.name);
+                    await createKanbanBoardWebview(context, selected.board.name, boardManager);
                 }
             }
         } catch (error) {
@@ -120,14 +120,9 @@ export function activate(context: vscode.ExtensionContext) {
  * Creates and displays a visual Kanban board using Microsoft's proven webview pattern
  * Uses external JavaScript files, proper CSP, and nonce-based security
  */
-async function createKanbanBoardWebview(context: vscode.ExtensionContext, boardName: string) {
-    // Initialize managers
-    const logger = new Logger();
-    const configManager = new ConfigurationManager();
-    const boardManager = new BoardManager(context, configManager, logger);
-    
+async function createKanbanBoardWebview(context: vscode.ExtensionContext, boardName: string, boardManager: BoardManager) {
     // Initialize card storage with Microsoft patterns
-    const cardStorage = createCardStorage(context, logger);
+    const cardStorage = createCardStorage(context, new Logger());
     
     // Initialize workspace
     await boardManager.initializeWorkspace();
