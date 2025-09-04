@@ -70,8 +70,22 @@ export class BoardManager {
     private configManager: ConfigurationManager,
     private logger: Logger
   ) {
-    this.fileStorage = new FileStorage(logger);
+    this.fileStorage = new FileStorage(context, logger);
     this.setupFileWatcher();
+  }
+
+  /**
+   * Get the storage instance (for access by other components)
+   */
+  get storage(): FileStorage {
+    return this.fileStorage;
+  }
+
+  /**
+   * List all boards (alias for getAllBoards for compatibility)
+   */
+  async listBoards(): Promise<KanbanBoard[]> {
+    return this.getAllBoards();
   }
 
   /**
@@ -196,7 +210,9 @@ export class BoardManager {
   async getAllBoards(): Promise<KanbanBoard[]> {
     try {
       const boards = await this.fileStorage.listBoards();
-      return boards.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+      return boards.sort((a: KanbanBoard, b: KanbanBoard) => 
+        b.lastModified.getTime() - a.lastModified.getTime()
+      );
     } catch (error) {
       this.logger.warn(`Failed to read boards directory: ${error}`);
       return [];

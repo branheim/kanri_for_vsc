@@ -101,7 +101,7 @@ export class EmptyTreeItem extends vscode.TreeItem {
 /**
  * Microsoft-compliant TreeDataProvider for Kanban boards
  */
-export class BoardsViewProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
+export class EnhancedBoardsViewProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
     private readonly logger: Logger;
     private readonly boardManager: BoardManager;
     
@@ -134,35 +134,19 @@ export class BoardsViewProvider implements vscode.TreeDataProvider<vscode.TreeIt
     }
 
     /**
-     * Microsoft pattern: Advanced throttled refresh with request coalescing
+     * Microsoft pattern: Throttled refresh to prevent excessive updates
      */
     refresh(): void {
         const now = Date.now();
-        
-        // Microsoft optimization: Coalesce multiple rapid refresh requests
         if (now - this.lastRefresh < this.refreshThrottle) {
-            this.logger.debug('Refresh request coalesced - too soon since last refresh');
+            this.logger.debug('Refresh throttled - too soon since last refresh');
             return;
         }
         
         this.lastRefresh = now;
         this.invalidateCache();
-        
-        // Microsoft pattern: Use requestIdleCallback equivalent for better performance
-        setTimeout(() => {
-            this._onDidChangeTreeData.fire();
-            this.logger.debug('Tree view refreshed (throttled)');
-        }, 0);
-    }
-
-    /**
-     * Microsoft pattern: Force refresh for user-initiated actions
-     */
-    forceRefresh(): void {
-        this.logger.info('Force refresh requested by user');
-        this.lastRefresh = 0; // Reset throttle
-        this.invalidateCache();
         this._onDidChangeTreeData.fire();
+        this.logger.debug('Tree view refreshed');
     }
 
     /**
@@ -282,6 +266,15 @@ export class BoardsViewProvider implements vscode.TreeDataProvider<vscode.TreeIt
             cacheSize: this.boardCache.length,
             cacheAge: Date.now() - this.cacheTimestamp
         };
+    }
+
+    /**
+     * Force refresh (for command palette)
+     */
+    forceRefresh(): void {
+        this.logger.info('Force refresh requested');
+        this.invalidateCache();
+        this.refresh();
     }
 
     /**

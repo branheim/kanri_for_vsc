@@ -13,105 +13,64 @@ import * as vscode from 'vscode';
 import { BoardManager } from './managers/boardManager';
 import { ConfigurationManager } from './utils/configurationManager';
 import { Logger } from './utils/logger';
-import { BoardsViewProvider } from './views/boardsViewProvider';
-import { FileStorage } from './storage/fileStorage';
+import { EnhancedBoardsViewProvider } from './views/enhancedBoardsViewProvider';
+import { EnhancedFileStorage } from './storage/enhancedFileStorage';
 
 // Global extension state
 let boardManager: BoardManager;
 let configManager: ConfigurationManager;
 let logger: Logger;
-let boardsViewProvider: BoardsViewProvider;
+let boardsViewProvider: EnhancedBoardsViewProvider;
 
 /**
- * Extension activation function - Microsoft recommended pattern with lazy loading
+ * Extension activation function - Microsoft recommended pattern
  */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-    const startTime = Date.now();
-    
     try {
-        // Microsoft pattern: Initialize core services first with error boundaries
+        // Initialize core services first
         await initializeServices(context);
         
-        // Microsoft optimization: Register commands early for fast response
+        // Register commands and views
         await registerCommands(context);
-        
-        // Microsoft pattern: Defer view registration for faster startup
         await registerViews(context);
         
-        // Microsoft optimization: Setup watchers after initial load
+        // Setup configuration watchers
         setupConfigurationWatchers(context);
         
-        // Microsoft pattern: Initialize workspace asynchronously
-        setImmediate(async () => {
-            try {
-                await initializeWorkspace();
-            } catch (error) {
-                logger.warn(`Workspace initialization deferred: ${error}`);
-                // Don't fail activation for workspace issues
-            }
-        });
+        // Initialize workspace
+        await initializeWorkspace();
         
-        const activationTime = Date.now() - startTime;
-        logger.info(`Kanri extension activated successfully in ${activationTime}ms`);
-        
-        // Microsoft pattern: Report activation success for telemetry
-        context.globalState.update('kanri.lastActivationTime', activationTime);
+        logger.info('Kanri extension activated successfully');
         
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown activation error';
-        const activationTime = Date.now() - startTime;
-        
-        // Microsoft pattern: Comprehensive error reporting
-        logger.error(`Activation failed after ${activationTime}ms: ${errorMessage}`);
         vscode.window.showErrorMessage(`Failed to activate Kanri extension: ${errorMessage}`);
-        
-        // Microsoft pattern: Store error info for debugging
-        context.globalState.update('kanri.lastActivationError', {
-            message: errorMessage,
-            timestamp: Date.now(),
-            duration: activationTime
-        });
-        
+        console.error('Kanri activation failed:', error);
         throw error; // Re-throw to let VS Code handle extension failure
     }
 }
 
 /**
- * Extension deactivation function - Microsoft recommended pattern with enhanced cleanup
+ * Extension deactivation function - Microsoft recommended pattern
  */
 export async function deactivate(): Promise<void> {
-    const startTime = Date.now();
-    
     try {
         logger?.info('Deactivating Kanri extension...');
         
-        // Microsoft pattern: Save all pending work first
+        // Save all pending work
         if (boardManager) {
-            try {
-                await boardManager.saveAllBoards();
-                logger?.info('All board data saved successfully');
-            } catch (error) {
-                logger?.error(`Failed to save boards during deactivation: ${error}`);
-                // Continue with deactivation even if save fails
-            }
+            await boardManager.saveAllBoards();
         }
         
-        // Microsoft pattern: Dispose of resources in reverse order of creation
-        try {
-            boardsViewProvider?.dispose();
-            boardManager?.dispose();
-            logger?.info('Extension resources disposed successfully');
-        } catch (error) {
-            logger?.error(`Error disposing resources: ${error}`);
-        }
+        // Dispose of resources in reverse order
+        boardsViewProvider?.dispose();
+        boardManager?.dispose();
         
-        const deactivationTime = Date.now() - startTime;
-        logger?.info(`Kanri extension deactivated successfully in ${deactivationTime}ms`);
+        logger?.info('Kanri extension deactivated successfully');
         
     } catch (error) {
-        const deactivationTime = Date.now() - startTime;
-        console.error(`Error during Kanri deactivation (${deactivationTime}ms):`, error);
-        // Microsoft pattern: Don't throw during deactivation as it can cause issues
+        console.error('Error during Kanri deactivation:', error);
+        // Don't throw during deactivation as it can cause issues
     }
 }
 
@@ -129,7 +88,7 @@ async function initializeServices(context: vscode.ExtensionContext): Promise<voi
     boardManager = new BoardManager(context, configManager, logger);
     
     // Initialize enhanced boards view provider
-    boardsViewProvider = new BoardsViewProvider(boardManager, logger);
+    boardsViewProvider = new EnhancedBoardsViewProvider(boardManager, logger);
     
     logger.info('Core services initialized');
 }
@@ -179,42 +138,13 @@ async function registerCommands(context: vscode.ExtensionContext): Promise<void>
     // Register commands with proper error handling
     for (const { command, callback, title } of commands) {
         const disposable = vscode.commands.registerCommand(command, async (...args: any[]) => {
-            const commandStartTime = Date.now();
-            
             try {
                 logger.debug(`Executing command: ${command}`);
                 await callback(...args);
-                
-                const commandDuration = Date.now() - commandStartTime;
-                logger.debug(`Command ${command} completed in ${commandDuration}ms`);
-                
             } catch (error) {
-                const commandDuration = Date.now() - commandStartTime;
                 const errorMessage = error instanceof Error ? error.message : 'Command execution failed';
-                
-                // Microsoft pattern: Comprehensive error logging
-                logger.error(`Command ${command} failed after ${commandDuration}ms: ${errorMessage}`);
-                
-                // Microsoft pattern: User-friendly error messages with actions
-                const retry = await vscode.window.showErrorMessage(
-                    `${title} failed: ${errorMessage}`,
-                    'Retry',
-                    'Report Issue'
-                );
-                
-                if (retry === 'Retry') {
-                    // Microsoft pattern: Retry mechanism for transient failures
-                    try {
-                        await callback(...args);
-                        vscode.window.showInformationMessage(`${title} succeeded on retry`);
-                    } catch (retryError) {
-                        const retryErrorMessage = retryError instanceof Error ? retryError.message : 'Retry failed';
-                        vscode.window.showErrorMessage(`${title} failed again: ${retryErrorMessage}`);
-                    }
-                } else if (retry === 'Report Issue') {
-                    // Microsoft pattern: Direct user to issue reporting
-                    vscode.env.openExternal(vscode.Uri.parse('https://github.com/branheim/kanri_for_vsc/issues/new'));
-                }
+                logger.error(`Command ${command} failed: ${errorMessage}`);
+                vscode.window.showErrorMessage(`${title} failed: ${errorMessage}`);
             }
         });
         

@@ -1,868 +1,432 @@
 "use strict";
 /**
- * Kanri for VS Code - Main Extension Entry Point
+ * Enhanced Extension Entry Point Following Microsoft VS Code Best Practices
  *
- * This extension provides a visual Kanban board interface within VS Code,
- * similar to the desktop Kanri application, using webviews for rich UI.
+ * Microsoft standards implemented:
+ * 1. Proper error handling and graceful degradation
+ * 2. Resource management and disposal patterns
+ * 3. Extension context usage for storage and configuration
+ * 4. Enhanced logging and debugging capabilities
+ * 5. Structured activation and deactivation lifecycle
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deactivate = exports.activate = void 0;
 const vscode = require("vscode");
-const logger_1 = require("./utils/logger");
 const boardManager_1 = require("./managers/boardManager");
 const configurationManager_1 = require("./utils/configurationManager");
-const cardStorage_1 = require("./storage/cardStorage");
+const logger_1 = require("./utils/logger");
 const boardsViewProvider_1 = require("./views/boardsViewProvider");
-// Global logger instance
-const logger = new logger_1.Logger();
+// Global extension state
+let boardManager;
+let configManager;
+let logger;
+let boardsViewProvider;
 /**
- * Generate a nonce for script security (Microsoft's pattern)
+ * Extension activation function - Microsoft recommended pattern with lazy loading
  */
-function getNonce() {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 32; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
+async function activate(context) {
+    const startTime = Date.now();
+    try {
+        // Microsoft pattern: Initialize core services first with error boundaries
+        await initializeServices(context);
+        // Microsoft optimization: Register commands early for fast response
+        await registerCommands(context);
+        // Microsoft pattern: Defer view registration for faster startup
+        await registerViews(context);
+        // Microsoft optimization: Setup watchers after initial load
+        setupConfigurationWatchers(context);
+        // Microsoft pattern: Initialize workspace asynchronously
+        setImmediate(async () => {
+            try {
+                await initializeWorkspace();
+            }
+            catch (error) {
+                logger.warn(`Workspace initialization deferred: ${error}`);
+                // Don't fail activation for workspace issues
+            }
+        });
+        const activationTime = Date.now() - startTime;
+        logger.info(`Kanri extension activated successfully in ${activationTime}ms`);
+        // Microsoft pattern: Report activation success for telemetry
+        context.globalState.update('kanri.lastActivationTime', activationTime);
     }
-    return text;
-}
-/**
- * Extension activation - called when VS Code loads the extension
- */
-function activate(context) {
-    console.log('Kanri for VS Code is now active!');
-    // Initialize managers for the view provider
-    const logger = new logger_1.Logger();
-    const configManager = new configurationManager_1.ConfigurationManager();
-    const boardManager = new boardManager_1.BoardManager(context, configManager, logger);
-    // Register the boards view provider for the sidebar
-    const boardsViewProvider = new boardsViewProvider_1.BoardsViewProvider(boardManager);
-    vscode.window.registerTreeDataProvider('kanri.boardsView', boardsViewProvider);
-    // Register the refresh boards command
-    const refreshBoardsCommand = vscode.commands.registerCommand('kanri.refreshBoards', () => {
-        boardsViewProvider.refresh();
-    });
-    // Register the create board command - now opens a visual board
-    const createBoardCommand = vscode.commands.registerCommand('kanri.createBoard', async () => {
-        try {
-            const boardName = await vscode.window.showInputBox({
-                prompt: 'Enter a name for your new kanban board',
-                placeHolder: 'My Project Board'
-            });
-            if (boardName) {
-                // Create and show the visual kanban board using shared boardManager
-                await createKanbanBoardWebview(context, boardName, boardManager);
-                // Refresh the boards view to show the new board
-                boardsViewProvider.refresh();
-            }
-        }
-        catch (error) {
-            vscode.window.showErrorMessage(`Failed to create board: ${error}`);
-        }
-    });
-    // Register the open board command - shows existing board
-    const openBoardCommand = vscode.commands.registerCommand('kanri.openBoard', async (boardId) => {
-        try {
-            if (boardId) {
-                // Open specific board by ID
-                const boards = await boardManager.getAllBoards();
-                const board = boards.find((b) => b.id === boardId);
-                if (board) {
-                    await createKanbanBoardWebview(context, board.name, boardManager);
-                }
-                else {
-                    vscode.window.showErrorMessage(`Board not found: ${boardId}`);
-                }
-            }
-            else {
-                // Show board picker
-                const boards = await boardManager.getAllBoards();
-                if (boards.length === 0) {
-                    vscode.window.showInformationMessage('No boards found. Create a new board first.');
-                    return;
-                }
-                const boardItems = boards.map(board => ({
-                    label: board.name,
-                    description: `Board ID: ${board.id}`,
-                    board: board
-                }));
-                const selected = await vscode.window.showQuickPick(boardItems, {
-                    placeHolder: 'Select a board to open'
-                });
-                if (selected) {
-                    await createKanbanBoardWebview(context, selected.board.name, boardManager);
-                }
-            }
-        }
-        catch (error) {
-            vscode.window.showErrorMessage(`Failed to open board: ${error}`);
-        }
-    });
-    // Add commands to subscriptions for proper disposal
-    context.subscriptions.push(refreshBoardsCommand, createBoardCommand, openBoardCommand);
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown activation error';
+        const activationTime = Date.now() - startTime;
+        // Microsoft pattern: Comprehensive error reporting
+        logger.error(`Activation failed after ${activationTime}ms: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Failed to activate Kanri extension: ${errorMessage}`);
+        // Microsoft pattern: Store error info for debugging
+        context.globalState.update('kanri.lastActivationError', {
+            message: errorMessage,
+            timestamp: Date.now(),
+            duration: activationTime
+        });
+        throw error; // Re-throw to let VS Code handle extension failure
+    }
 }
 exports.activate = activate;
 /**
- * Creates and displays a visual Kanban board using Microsoft's proven webview pattern
- * Uses external JavaScript files, proper CSP, and nonce-based security
+ * Extension deactivation function - Microsoft recommended pattern with enhanced cleanup
  */
-async function createKanbanBoardWebview(context, boardName, boardManager) {
-    // Initialize card storage with Microsoft patterns
-    const cardStorage = (0, cardStorage_1.createCardStorage)(context, new logger_1.Logger());
-    // Initialize workspace
-    await boardManager.initializeWorkspace();
-    // Try to load existing board or create a new one
-    let board;
+async function deactivate() {
+    const startTime = Date.now();
     try {
-        const boards = await boardManager.getAllBoards();
-        const existingBoard = boards.find((b) => b.name === boardName);
-        if (existingBoard) {
-            board = existingBoard;
-        }
-        else {
-            // Create new board with empty columns
-            board = await boardManager.createBoard({ name: boardName });
-        }
-    }
-    catch (error) {
-        // If board loading fails, create a new one
-        board = await boardManager.createBoard({ name: boardName });
-    }
-    // Create webview panel with proper options following Microsoft's pattern
-    const panel = vscode.window.createWebviewPanel('kanriBoard', `Kanri Board: ${boardName}`, vscode.ViewColumn.One, {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [
-            vscode.Uri.joinPath(context.extensionUri, 'media')
-        ]
-    });
-    // Generate nonce for security (Microsoft's pattern)
-    const nonce = getNonce();
-    // Get URIs for external resources
-    const scriptUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'kanban.js'));
-    // Set webview HTML content with Microsoft's CSP and external script pattern
-    panel.webview.html = getKanbanBoardHTML(board, panel.webview, nonce, scriptUri);
-    // Handle messages from webview with proper persistence
-    panel.webview.onDidReceiveMessage(async (message) => {
-        try {
-            switch (message.command) {
-                case 'addCard':
-                    await handleAddCard(panel, message.column, cardStorage, boardManager, boardName);
-                    break;
-                case 'moveCard':
-                    await handleMoveCard(message.cardId, message.targetColumn, cardStorage, panel);
-                    break;
-                case 'deleteCard':
-                    await handleDeleteCard(panel, message.cardId, cardStorage);
-                    break;
-                case 'updateCard':
-                    await handleUpdateCard(panel, message.cardId, message.updates, cardStorage);
-                    break;
-                case 'renameBoard':
-                    await handleRenameBoard(panel, message.currentName, boardManager, boardName);
-                    break;
-                case 'addColumn':
-                    await handleAddColumn(panel, boardManager, boardName);
-                    break;
-                case 'deleteColumn':
-                    await handleDeleteColumn(panel, message.columnId, cardStorage, boardManager, boardName);
-                    break;
-                case 'renameColumn':
-                    await handleRenameColumn(panel, message.columnId, message.newTitle, boardManager, boardName);
-                    break;
-                case 'reorderColumn':
-                    await handleReorderColumn(message.draggedColumnId, message.targetColumnId, boardManager, boardName);
-                    break;
-                case 'refreshBoard':
-                    await refreshBoardView(panel, boardName, cardStorage, boardManager);
-                    break;
+        logger?.info('Deactivating Kanri extension...');
+        // Microsoft pattern: Save all pending work first
+        if (boardManager) {
+            try {
+                await boardManager.saveAllBoards();
+                logger?.info('All board data saved successfully');
+            }
+            catch (error) {
+                logger?.error(`Failed to save boards during deactivation: ${error}`);
+                // Continue with deactivation even if save fails
             }
         }
-        catch (error) {
-            logger.error(`Error handling message ${message.command}:`, error);
-            vscode.window.showErrorMessage(`Failed to ${message.command}: ${error}`);
+        // Microsoft pattern: Dispose of resources in reverse order of creation
+        try {
+            boardsViewProvider?.dispose();
+            boardManager?.dispose();
+            logger?.info('Extension resources disposed successfully');
         }
-    }, undefined, context.subscriptions);
-    vscode.window.showInformationMessage(`Kanban board "${boardName}" opened!`);
+        catch (error) {
+            logger?.error(`Error disposing resources: ${error}`);
+        }
+        const deactivationTime = Date.now() - startTime;
+        logger?.info(`Kanri extension deactivated successfully in ${deactivationTime}ms`);
+    }
+    catch (error) {
+        const deactivationTime = Date.now() - startTime;
+        console.error(`Error during Kanri deactivation (${deactivationTime}ms):`, error);
+        // Microsoft pattern: Don't throw during deactivation as it can cause issues
+    }
+}
+exports.deactivate = deactivate;
+/**
+ * Initialize core services following Microsoft dependency injection patterns
+ */
+async function initializeServices(context) {
+    // Initialize logger (uses its own output channel)
+    logger = new logger_1.Logger();
+    // Initialize configuration manager
+    configManager = new configurationManager_1.ConfigurationManager();
+    // Initialize board manager with enhanced storage
+    boardManager = new boardManager_1.BoardManager(context, configManager, logger);
+    // Initialize enhanced boards view provider
+    boardsViewProvider = new boardsViewProvider_1.BoardsViewProvider(boardManager, logger);
+    logger.info('Core services initialized');
 }
 /**
- * Generates HTML for the Kanban board interface using Microsoft's security pattern
+ * Register all VS Code commands following Microsoft patterns
  */
-/**
- * Helper function to generate HTML for columns and cards based on board data
- */
-function generateColumnsHTML(board) {
-    return board.columns.map(column => {
-        const cardsHTML = column.cards.map(card => `
-            <div class="card" draggable="true" data-card-id="${card.id}" id="${card.id}">
-                <div class="card-actions">
-                    <button class="delete-card-btn" data-card-id="${card.id}">&times;</button>
-                </div>
-                <div class="card-title">${escapeHtml(card.title)}</div>
-                <div class="card-description">${escapeHtml(card.description || '')}</div>
-            </div>
-        `).join('');
-        // Create a safe column ID for HTML attributes
-        const safeColumnId = column.id.replace(/[^a-zA-Z0-9-_]/g, '');
-        return `
-            <div class="column" data-column="${safeColumnId}">
-                <div class="column-header">
-                    <span class="column-title">${escapeHtml(column.title)}</span>
-                    <div class="column-actions">
-                        <span class="card-count">${column.cards.length}</span>
-                        <button class="delete-column-btn" data-column="${safeColumnId}" title="Delete column">&times;</button>
-                    </div>
-                </div>
-                <div class="cards-container" id="${safeColumnId}-cards" data-column="${safeColumnId}">
-                    ${cardsHTML}
-                </div>
-                <div class="add-card-btn" data-column="${safeColumnId}">+ Add a card</div>
-            </div>
-        `;
-    }).join('');
+async function registerCommands(context) {
+    const commands = [
+        // Board management commands
+        {
+            command: 'kanri.createBoard',
+            callback: createBoardCommand,
+            title: 'Create Kanban Board'
+        },
+        {
+            command: 'kanri.openBoard',
+            callback: openBoardCommand,
+            title: 'Open Kanban Board'
+        },
+        {
+            command: 'kanri.listBoards',
+            callback: listBoardsCommand,
+            title: 'List All Boards'
+        },
+        {
+            command: 'kanri.refreshBoards',
+            callback: refreshBoardsCommand,
+            title: 'Refresh Boards View'
+        },
+        // View management commands
+        {
+            command: 'kanri.showKanbanView',
+            callback: showKanbanViewCommand,
+            title: 'Show Kanban View'
+        },
+        // Utility commands
+        {
+            command: 'kanri.openSettings',
+            callback: openSettingsCommand,
+            title: 'Open Kanri Settings'
+        }
+    ];
+    // Register commands with proper error handling
+    for (const { command, callback, title } of commands) {
+        const disposable = vscode.commands.registerCommand(command, async (...args) => {
+            const commandStartTime = Date.now();
+            try {
+                logger.debug(`Executing command: ${command}`);
+                await callback(...args);
+                const commandDuration = Date.now() - commandStartTime;
+                logger.debug(`Command ${command} completed in ${commandDuration}ms`);
+            }
+            catch (error) {
+                const commandDuration = Date.now() - commandStartTime;
+                const errorMessage = error instanceof Error ? error.message : 'Command execution failed';
+                // Microsoft pattern: Comprehensive error logging
+                logger.error(`Command ${command} failed after ${commandDuration}ms: ${errorMessage}`);
+                // Microsoft pattern: User-friendly error messages with actions
+                const retry = await vscode.window.showErrorMessage(`${title} failed: ${errorMessage}`, 'Retry', 'Report Issue');
+                if (retry === 'Retry') {
+                    // Microsoft pattern: Retry mechanism for transient failures
+                    try {
+                        await callback(...args);
+                        vscode.window.showInformationMessage(`${title} succeeded on retry`);
+                    }
+                    catch (retryError) {
+                        const retryErrorMessage = retryError instanceof Error ? retryError.message : 'Retry failed';
+                        vscode.window.showErrorMessage(`${title} failed again: ${retryErrorMessage}`);
+                    }
+                }
+                else if (retry === 'Report Issue') {
+                    // Microsoft pattern: Direct user to issue reporting
+                    vscode.env.openExternal(vscode.Uri.parse('https://github.com/branheim/kanri_for_vsc/issues/new'));
+                }
+            }
+        });
+        context.subscriptions.push(disposable);
+    }
+    logger.info(`Registered ${commands.length} commands`);
 }
 /**
- * Helper function to escape HTML characters for security
+ * Register views and view providers
  */
-function escapeHtml(text) {
-    if (!text)
-        return '';
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+async function registerViews(context) {
+    // Register tree data provider for boards view
+    const treeView = vscode.window.createTreeView('kanri.boardsView', {
+        treeDataProvider: boardsViewProvider,
+        showCollapseAll: false,
+        canSelectMany: false
+    });
+    context.subscriptions.push(treeView);
+    context.subscriptions.push(boardsViewProvider);
+    // Set up view actions (Microsoft pattern)
+    treeView.onDidChangeSelection((event) => {
+        if (event.selection.length > 0) {
+            logger.debug(`Board selected: ${JSON.stringify(event.selection[0])}`);
+        }
+    });
+    logger.info('Views registered successfully');
 }
 /**
- * Generate HTML for kanban board webview using board data
+ * Setup configuration change watchers (Microsoft pattern)
  */
-function getKanbanBoardHTML(board, webview, nonce, scriptUri) {
+function setupConfigurationWatchers(context) {
+    const configWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration('kanri')) {
+            logger.info('Kanri configuration changed');
+            configManager.reloadConfiguration();
+            boardManager.updateConfiguration();
+            boardsViewProvider.refresh();
+        }
+    });
+    context.subscriptions.push(configWatcher);
+    logger.debug('Configuration watchers setup complete');
+}
+/**
+ * Initialize workspace for board storage
+ */
+async function initializeWorkspace() {
+    try {
+        await boardManager.initializeWorkspace();
+        logger.info('Workspace initialized for Kanri');
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Workspace initialization failed';
+        logger.warn(`Workspace initialization failed: ${errorMessage}`);
+        // Don't fail activation just because workspace init failed
+    }
+}
+// ============================================================================
+// COMMAND IMPLEMENTATIONS
+// ============================================================================
+/**
+ * Create new board command
+ */
+async function createBoardCommand() {
+    const board = await boardManager.createBoard();
+    if (board) {
+        // Refresh the tree view to show the new board
+        boardsViewProvider.refresh();
+        // Option to open the newly created board
+        const openBoard = await vscode.window.showInformationMessage(`Board "${board.name}" created successfully!`, 'Open Board');
+        if (openBoard === 'Open Board') {
+            await openBoardCommand(board.id);
+        }
+    }
+}
+/**
+ * Open board command
+ */
+async function openBoardCommand(boardId) {
+    if (!boardId) {
+        // Show board selection if no ID provided
+        await listBoardsCommand();
+        return;
+    }
+    const board = await boardManager.getBoard(boardId);
+    if (!board) {
+        vscode.window.showErrorMessage(`Board not found: ${boardId}`);
+        return;
+    }
+    // TODO: Create enhanced webview for board editing
+    await createKanbanBoardWebview(board, boardManager);
+}
+/**
+ * List boards command
+ */
+async function listBoardsCommand() {
+    await boardManager.viewAllBoards();
+}
+/**
+ * Refresh boards view command
+ */
+async function refreshBoardsCommand() {
+    boardsViewProvider.forceRefresh();
+    vscode.window.showInformationMessage('Boards view refreshed');
+}
+/**
+ * Show Kanban view command
+ */
+async function showKanbanViewCommand() {
+    await vscode.commands.executeCommand('kanri.boardsView.focus');
+}
+/**
+ * Open settings command
+ */
+async function openSettingsCommand() {
+    await vscode.commands.executeCommand('workbench.action.openSettings', 'kanri');
+}
+// ============================================================================
+// WEBVIEW FUNCTIONALITY (Enhanced for Microsoft standards)
+// ============================================================================
+/**
+ * Create Kanban board webview with enhanced error handling
+ */
+async function createKanbanBoardWebview(board, boardManager) {
+    try {
+        // Create webview panel
+        const panel = vscode.window.createWebviewPanel('kanbanBoard', `Kanban: ${board.name}`, vscode.ViewColumn.One, {
+            enableScripts: true,
+            enableFindWidget: true,
+            retainContextWhenHidden: true,
+            localResourceRoots: [vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, 'media')]
+        });
+        // Set webview HTML content
+        panel.webview.html = getWebviewContent(panel.webview, board);
+        // Handle webview messages with enhanced error handling
+        panel.webview.onDidReceiveMessage(async (message) => {
+            try {
+                await handleWebviewMessage(message, board, boardManager, panel);
+            }
+            catch (error) {
+                logger.error(`Webview message handling failed: ${error}`);
+                panel.webview.postMessage({
+                    type: 'error',
+                    message: 'An error occurred while processing your request'
+                });
+            }
+        });
+        // Handle panel disposal
+        panel.onDidDispose(() => {
+            logger.debug(`Webview closed for board: ${board.name}`);
+        });
+        logger.info(`Webview created for board: ${board.name}`);
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to create webview';
+        logger.error(`Webview creation failed: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Failed to open board: ${errorMessage}`);
+    }
+}
+/**
+ * Handle messages from webview
+ */
+async function handleWebviewMessage(message, board, boardManager, panel) {
+    switch (message.type) {
+        case 'boardUpdated':
+            logger.debug('Board updated via webview');
+            await boardManager.saveBoard(message.board);
+            boardsViewProvider.refresh();
+            break;
+        case 'requestBoardData':
+            logger.debug('Webview requesting board data');
+            panel.webview.postMessage({
+                type: 'boardData',
+                board: board
+            });
+            break;
+        default:
+            logger.warn(`Unknown webview message type: ${message.type}`);
+    }
+}
+/**
+ * Generate HTML content for webview
+ */
+function getWebviewContent(webview, board) {
+    // TODO: Enhanced webview implementation
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
-    <title>Kanri Board: ${board.name}</title>
+    <title>Kanban Board: ${board.name}</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground);
+            font-family: var(--vscode-font-family);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+            margin: 0;
             padding: 20px;
-            height: 100vh;
-            overflow-x: auto;
         }
-        
         .board-header {
             margin-bottom: 20px;
             padding-bottom: 10px;
             border-bottom: 1px solid var(--vscode-panel-border);
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
-        
         .board-title {
             font-size: 24px;
-            font-weight: 600;
-            color: var(--vscode-editor-foreground);
-            flex: 1;
+            font-weight: bold;
+            margin: 0;
         }
-        
-        .rename-button {
-            background: transparent;
-            border: 1px solid var(--vscode-button-border);
-            color: var(--vscode-button-foreground);
-            padding: 4px 8px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 14px;
-            opacity: 0.7;
-            transition: opacity 0.2s;
-        }
-        
-        .rename-button:hover {
-            opacity: 1;
-            background: var(--vscode-button-hoverBackground);
-        }
-        
-        .kanban-board {
-            display: flex;
-            gap: 20px;
-            min-height: calc(100vh - 100px);
-            align-items: flex-start;
-        }
-        
-        .column {
-            background: var(--vscode-sideBar-background);
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 8px;
-            min-width: 300px;
-            max-width: 350px;
-            padding: 15px;
-            flex-shrink: 0;
-            cursor: grab;
-            transition: all 0.2s ease;
-        }
-        
-        .column:active {
-            cursor: grabbing;
-        }
-        
-        .column.dragging {
-            opacity: 0.5;
-            transform: scale(0.95);
-            z-index: 1000;
-        }
-        
-        .column.drag-over {
-            border-left: 3px solid var(--vscode-focusBorder);
-            transform: translateX(5px);
-        }
-        
-        .kanban-board.dragging-column .column:not(.dragging) {
-            border-left: 2px dashed var(--vscode-panel-border);
-            transition: border-left 0.2s ease;
-        }
-        
-        .column-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-            cursor: grab;
-            user-select: none;
-        }
-        
-        .column-header:active {
-            cursor: grabbing;
-        }
-        
-        .column-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--vscode-editor-foreground);
-            flex: 1;
-        }
-        
-        .column-actions {
-            display: flex;
-            gap: 5px;
-            align-items: center;
-        }
-        
-        .delete-column-btn {
-            background: transparent;
-            border: none;
-            color: var(--vscode-errorForeground);
-            cursor: pointer;
-            font-size: 14px;
-            padding: 2px 4px;
-            border-radius: 3px;
-            opacity: 0.6;
-            transition: opacity 0.2s;
-        }
-        
-        .delete-column-btn:hover {
-            opacity: 1;
-            background: var(--vscode-inputValidation-errorBackground);
-        }
-        
-        .card-count {
-            background: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-        }
-        
-        .cards-container {
-            min-height: 200px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        
-        .card {
-            background: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 6px;
-            padding: 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            position: relative;
-        }
-        
-        .card:hover {
-            border-color: var(--vscode-focusBorder);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .card-title {
-            font-weight: 500;
-            margin-bottom: 6px;
-            color: var(--vscode-editor-foreground);
-        }
-        
-        .card-description {
-            font-size: 13px;
+        .board-description {
             color: var(--vscode-descriptionForeground);
-            line-height: 1.4;
+            margin-top: 5px;
         }
-        
-        .card-actions {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-        
-        .card:hover .card-actions {
-            opacity: 1;
-        }
-        
-        .card-delete {
-            background: var(--vscode-errorForeground);
-            color: white;
-            border: none;
-            border-radius: 3px;
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .add-card-btn {
-            background: transparent;
-            border: 2px dashed var(--vscode-panel-border);
-            color: var(--vscode-descriptionForeground);
-            padding: 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            margin-top: 10px;
+        .placeholder {
             text-align: center;
-            transition: all 0.2s ease;
-        }
-        
-        .add-card-btn:hover {
-            border-color: var(--vscode-focusBorder);
-            color: var(--vscode-editor-foreground);
-            background: var(--vscode-list-hoverBackground);
-        }
-        
-        .add-column-btn {
-            background: transparent;
-            border: 2px dashed var(--vscode-panel-border);
             color: var(--vscode-descriptionForeground);
-            min-width: 300px;
-            min-height: 100px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
-        }
-        
-        .add-column-btn:hover {
-            border-color: var(--vscode-focusBorder);
-            color: var(--vscode-editor-foreground);
-            background: var(--vscode-list-hoverBackground);
-        }
-        
-        .card.dragging {
-            opacity: 0.5;
-            transform: rotate(2deg);
-        }
-        
-        .cards-container.drag-over {
-            background: var(--vscode-list-hoverBackground);
-        }
-        
-        /* Responsive design */
-        @media (max-width: 768px) {
-            .kanban-board {
-                flex-direction: column;
-            }
-            
-            .column {
-                min-width: 100%;
-            }
+            font-style: italic;
+            margin-top: 50px;
         }
     </style>
 </head>
 <body>
     <div class="board-header">
         <h1 class="board-title">${board.name}</h1>
-        <button class="rename-button" title="Rename board">✏️</button>
+        <p class="board-description">${board.description || 'No description provided'}</p>
     </div>
     
-    <div class="kanban-board" id="kanban-board">
-        ${generateColumnsHTML(board)}
-        <div class="add-column-btn" id="add-column-btn">+ Add Column</div>
+    <div class="placeholder">
+        <p>🚧 Interactive Kanban Board Coming Soon! 🚧</p>
+        <p>This enhanced webview will include:</p>
+        <ul style="text-align: left; display: inline-block;">
+            <li>Drag & drop card management</li>
+            <li>Real-time column updates</li>
+            <li>Card editing and details</li>
+            <li>Board customization options</li>
+        </ul>
+        <p><strong>Board ID:</strong> ${board.id}</p>
+        <p><strong>Columns:</strong> ${board.columns.length}</p>
+        <p><strong>Total Cards:</strong> ${board.columns.reduce((sum, col) => sum + col.cards.length, 0)}</p>
     </div>
-
-    <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
 }
-// Message handlers for webview communication
-async function handleAddCard(panel, columnId, cardStorage, boardManager, boardName) {
-    try {
-        // Prompt user for card text
-        const cardText = await vscode.window.showInputBox({
-            prompt: 'Enter card title:',
-            placeHolder: 'Enter your task or idea'
-        });
-        if (cardText && cardText.trim()) {
-            // Create card using our robust storage system
-            const createOptions = {
-                title: cardText.trim(),
-                columnId: columnId
-            };
-            const result = await cardStorage.createCard(createOptions);
-            if (result.success && result.data) {
-                // Send message to webview to add the card
-                panel.webview.postMessage({
-                    command: 'cardAdded',
-                    card: {
-                        id: result.data.id,
-                        title: result.data.title,
-                        description: result.data.description || '',
-                        columnId: result.data.columnId
-                    },
-                    column: columnId
-                });
-                logger.info(`Added card "${cardText}" to column ${columnId} with ID ${result.data.id}`);
-                vscode.window.showInformationMessage(`Card "${cardText}" added successfully!`);
-            }
-            else {
-                // Handle storage error gracefully
-                logger.error(`Failed to create card: ${result.error}`);
-                vscode.window.showErrorMessage(`Failed to create card: ${result.error}`);
-            }
-        }
-    }
-    catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`Error in handleAddCard: ${errorMessage}`);
-        vscode.window.showErrorMessage(`Failed to add card: ${errorMessage}`);
-    }
-}
-async function handleMoveCard(cardId, targetColumn, cardStorage, panel) {
-    try {
-        logger.info(`Moving card ${cardId} to ${targetColumn}`);
-        // Update card's column using storage system
-        const result = await cardStorage.updateCard(cardId, { columnId: targetColumn });
-        if (result.success) {
-            // Send confirmation to webview that move was persisted
-            panel.webview.postMessage({
-                command: 'cardMoved',
-                cardId: cardId,
-                targetColumn: targetColumn,
-                success: true
-            });
-            logger.info(`Successfully moved card ${cardId} to column ${targetColumn}`);
-        }
-        else {
-            // Send failure notification to webview to revert the move
-            panel.webview.postMessage({
-                command: 'cardMoveError',
-                cardId: cardId,
-                error: result.error
-            });
-            logger.error(`Failed to move card ${cardId}: ${result.error}`);
-            vscode.window.showWarningMessage(`Failed to save card move: ${result.error}`);
-        }
-    }
-    catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`Error moving card ${cardId}: ${errorMessage}`);
-        vscode.window.showErrorMessage(`Failed to move card: ${errorMessage}`);
-    }
-}
-async function handleDeleteCard(panel, cardId, cardStorage) {
-    try {
-        logger.info(`Deleting card ${cardId}`);
-        // Delete from storage first
-        const result = await cardStorage.deleteCard(cardId);
-        if (result.success) {
-            // Send message to webview to remove the card
-            panel.webview.postMessage({
-                command: 'cardDeleted',
-                cardId: cardId
-            });
-            logger.info(`Successfully deleted card ${cardId}`);
-            vscode.window.showInformationMessage('Card deleted successfully');
-        }
-        else {
-            logger.error(`Failed to delete card ${cardId}: ${result.error}`);
-            vscode.window.showErrorMessage(`Failed to delete card: ${result.error}`);
-        }
-    }
-    catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`Error deleting card ${cardId}: ${errorMessage}`);
-        vscode.window.showErrorMessage(`Failed to delete card: ${errorMessage}`);
-    }
-}
-function handleReorderColumn(draggedColumnId, targetColumnId, boardManager, boardName) {
-    logger.info(`Reordering column ${draggedColumnId} before ${targetColumnId}`);
-    // TODO: Update persistent storage when implemented
-    // For now, just log the reorder operation
-}
-/**
- * Handle card updates with persistence
- */
-async function handleUpdateCard(panel, cardId, updates, cardStorage) {
-    try {
-        const result = await cardStorage.updateCard(cardId, updates);
-        if (result.success && result.data) {
-            // Send updated card back to webview
-            panel.webview.postMessage({
-                command: 'cardUpdated',
-                card: result.data
-            });
-            logger.info(`Updated card ${cardId}`);
-        }
-        else {
-            logger.error(`Failed to update card ${cardId}: ${result.error}`);
-            vscode.window.showErrorMessage(`Failed to update card: ${result.error}`);
-        }
-    }
-    catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`Error updating card ${cardId}: ${errorMessage}`);
-        vscode.window.showErrorMessage(`Failed to update card: ${errorMessage}`);
-    }
-}
-/**
- * Handle board rename with persistence
- */
-async function handleRenameBoard(panel, currentName, boardManager, boardName) {
-    try {
-        const newName = await vscode.window.showInputBox({
-            prompt: 'Enter new board name:',
-            value: currentName,
-            placeHolder: 'Board name'
-        });
-        if (newName && newName.trim() && newName !== currentName) {
-            // Update board in storage
-            const board = await boardManager.getBoard(boardName);
-            if (board) {
-                board.name = newName.trim();
-                await boardManager.saveBoard(board);
-            }
-            // Update the panel title
-            panel.title = `Kanri Board: ${newName}`;
-            // Send message to webview to update the board name
-            panel.webview.postMessage({
-                command: 'boardRenamed',
-                newName: newName
-            });
-            logger.info(`Renamed board to "${newName}"`);
-            vscode.window.showInformationMessage(`Board renamed to "${newName}"`);
-        }
-    }
-    catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`Error renaming board: ${errorMessage}`);
-        vscode.window.showErrorMessage(`Failed to rename board: ${errorMessage}`);
-    }
-}
-/**
- * Handle column addition with persistence
- */
-async function handleAddColumn(panel, boardManager, boardName) {
-    try {
-        const columnName = await vscode.window.showInputBox({
-            prompt: 'Enter column name:',
-            placeHolder: 'Column name'
-        });
-        if (columnName && columnName.trim()) {
-            // Generate a unique column ID
-            const columnId = columnName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now();
-            // Update board structure
-            const board = await boardManager.getBoard(boardName);
-            if (board) {
-                board.columns.push({
-                    id: columnId,
-                    title: columnName.trim(),
-                    cards: []
-                });
-                await boardManager.saveBoard(board);
-            }
-            // Send message to webview to add the column
-            panel.webview.postMessage({
-                command: 'columnAdded',
-                columnId: columnId,
-                columnName: columnName.trim()
-            });
-            logger.info(`Added column "${columnName}" with ID "${columnId}"`);
-        }
-    }
-    catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`Error adding column: ${errorMessage}`);
-        vscode.window.showErrorMessage(`Failed to add column: ${errorMessage}`);
-    }
-}
-/**
- * Handle column deletion with persistence
- */
-async function handleDeleteColumn(panel, columnId, cardStorage, boardManager, boardName) {
-    try {
-        const answer = await vscode.window.showWarningMessage(`Are you sure you want to delete this column? All cards in it will be lost.`, { modal: true }, 'Delete Column');
-        if (answer === 'Delete Column') {
-            // Delete all cards in the column first
-            const columnCards = await cardStorage.getCardsByColumn(columnId);
-            if (columnCards.success && columnCards.data) {
-                for (const card of columnCards.data) {
-                    await cardStorage.deleteCard(card.id);
-                }
-            }
-            // Update board structure
-            const board = await boardManager.getBoard(boardName);
-            if (board) {
-                board.columns = board.columns.filter(col => col.id !== columnId);
-                await boardManager.saveBoard(board);
-            }
-            // Send message to webview to remove the column
-            panel.webview.postMessage({
-                command: 'columnDeleted',
-                columnId: columnId
-            });
-            logger.info(`Deleted column ${columnId}`);
-            vscode.window.showInformationMessage('Column deleted');
-        }
-    }
-    catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`Error deleting column: ${errorMessage}`);
-        vscode.window.showErrorMessage(`Failed to delete column: ${errorMessage}`);
-    }
-}
-/**
- * Handle column renaming with persistence
- */
-async function handleRenameColumn(panel, columnId, newTitle, boardManager, boardName) {
-    try {
-        // Update board structure
-        const board = await boardManager.getBoard(boardName);
-        if (board) {
-            const column = board.columns.find(col => col.id === columnId);
-            if (column) {
-                column.title = newTitle.trim();
-                await boardManager.saveBoard(board);
-                // Send confirmation to webview
-                panel.webview.postMessage({
-                    command: 'columnRenamed',
-                    columnId: columnId,
-                    newTitle: newTitle
-                });
-                logger.info(`Renamed column ${columnId} to "${newTitle}"`);
-            }
-        }
-    }
-    catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(`Error renaming column: ${errorMessage}`);
-        vscode.window.showErrorMessage(`Failed to rename column: ${errorMessage}`);
-    }
-}
-/**
- * Helper function to update board structure when card is added
- */
-async function updateBoardWithNewCard(card, boardManager, boardName) {
-    try {
-        const board = await boardManager.getBoard(boardName);
-        if (board) {
-            const column = board.columns.find(col => col.id === card.columnId);
-            if (column) {
-                // Add card to column if not already there
-                const existingCard = column.cards.find(c => c.id === card.id);
-                if (!existingCard) {
-                    const boardCard = {
-                        id: card.id,
-                        title: card.title,
-                        description: card.description || '',
-                        priority: card.priority || 'medium',
-                        tags: card.tags || [],
-                        createdAt: card.createdAt,
-                        lastModified: card.updatedAt
-                    };
-                    column.cards.push(boardCard);
-                    await boardManager.saveBoard(board);
-                }
-            }
-        }
-    }
-    catch (error) {
-        logger.error(`Error updating board structure: ${error}`);
-    }
-}
-/**
- * Refresh board view with latest data from storage
- */
-async function refreshBoardView(panel, boardName, cardStorage, boardManager) {
-    try {
-        // Get fresh board data
-        const board = await boardManager.getBoard(boardName);
-        if (board) {
-            // Get all cards from storage and organize by column
-            const allCards = await cardStorage.getAllCards();
-            if (allCards.success && allCards.data) {
-                // Update board columns with current cards
-                for (const column of board.columns) {
-                    const columnCards = allCards.data
-                        .filter(card => card.columnId === column.id)
-                        .sort((a, b) => a.order - b.order)
-                        .map(card => ({
-                        id: card.id,
-                        title: card.title,
-                        description: card.description,
-                        priority: card.priority || 'medium',
-                        tags: card.tags || [],
-                        createdAt: card.createdAt,
-                        lastModified: card.updatedAt
-                    }));
-                    column.cards = columnCards; // Type assertion for compatibility
-                }
-                // Save updated board structure
-                await boardManager.saveBoard(board);
-                // Send fresh board data to webview
-                panel.webview.postMessage({
-                    command: 'boardRefreshed',
-                    board: board
-                });
-            }
-        }
-    }
-    catch (error) {
-        logger.error(`Error refreshing board view: ${error}`);
-    }
-}
-/**
- * Extension deactivation - called when VS Code unloads the extension
- */
-function deactivate() {
-    console.log('Kanri for VS Code has been deactivated');
-}
-exports.deactivate = deactivate;
 //# sourceMappingURL=extension.js.map

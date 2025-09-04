@@ -36,8 +36,20 @@ class BoardManager {
         this.logger = logger;
         /** Cache of loaded boards for performance */
         this.loadedBoards = new Map();
-        this.fileStorage = new fileStorage_1.FileStorage(logger);
+        this.fileStorage = new fileStorage_1.FileStorage(context, logger);
         this.setupFileWatcher();
+    }
+    /**
+     * Get the storage instance (for access by other components)
+     */
+    get storage() {
+        return this.fileStorage;
+    }
+    /**
+     * List all boards (alias for getAllBoards for compatibility)
+     */
+    async listBoards() {
+        return this.getAllBoards();
     }
     /**
      * Initialize the workspace for board storage
