@@ -12,6 +12,7 @@ import { BoardManager } from './managers/boardManager';
 import { KanbanBoard } from './config/defaults';
 import { ConfigurationManager } from './utils/configurationManager';
 import { createCardStorage, CardStorage, CreateCardOptions } from './storage/cardStorage';
+import { FileStorage } from './storage/fileStorage';
 import { BoardsViewProvider } from './views/boardsViewProvider';
 
 // Global logger instance

@@ -14,9 +14,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BoardManager = void 0;
 const vscode = require("vscode");
-const fs = require("fs/promises");
 const path = require("path");
 const defaults_1 = require("../config/defaults");
+const fileStorage_1 = require("../storage/fileStorage");
 /**
  * BoardManager class responsible for all kanban board operations
  * Provides a high-level API for board management while handling
@@ -36,6 +36,7 @@ class BoardManager {
         this.logger = logger;
         /** Cache of loaded boards for performance */
         this.loadedBoards = new Map();
+        this.fileStorage = new fileStorage_1.FileStorage(logger);
         this.setupFileWatcher();
     }
     /**
@@ -43,34 +44,13 @@ class BoardManager {
      * Creates the boards directory if it doesn't exist
      */
     async initializeWorkspace() {
+        // FileStorage handles directory creation automatically
+        // This method now serves as a validation and logging point
         const workspaceFolder = this.getWorkspaceFolder();
         if (!workspaceFolder) {
             throw new Error('No workspace folder available for board storage');
         }
-        const boardsDir = this.getBoardsDirectory();
-        try {
-            await fs.access(boardsDir);
-            this.logger.debug(`Boards directory already exists: ${boardsDir}`);
-        }
-        catch {
-            // Directory doesn't exist, create it
-            await fs.mkdir(boardsDir, { recursive: true });
-            this.logger.info(`Created boards directory: ${boardsDir}`);
-            // Create a README file to explain the directory purpose
-            const readmePath = path.join(boardsDir, 'README.md');
-            const readmeContent = `# Kanri Boards Directory
-
-This directory contains your kanban board files for the Kanri VS Code extension.
-
-- Each .kanri.json file represents a kanban board
-- These files are automatically managed by the extension
-- You can backup these files to preserve your boards
-- Avoid manually editing these files to prevent corruption
-
-For more information, visit: https://github.com/your-repo/kanri-for-vscode
-`;
-            await fs.writeFile(readmePath, readmeContent, 'utf8');
-        }
+        this.logger.info('Workspace initialized for Kanri board storage');
     }
     /**
      * Create a new kanban board
@@ -157,34 +137,8 @@ For more information, visit: https://github.com/your-repo/kanri-for-vscode
      * @returns Array of all available boards
      */
     async getAllBoards() {
-        const boardsDir = this.getBoardsDirectory();
         try {
-            const files = await fs.readdir(boardsDir);
-            const boardFiles = files.filter(file => file.endsWith(defaults_1.BOARD_FILE_EXTENSION));
-            const boards = [];
-            for (const file of boardFiles) {
-                try {
-                    const filePath = path.join(boardsDir, file);
-                    const boardData = await fs.readFile(filePath, 'utf8');
-                    const board = JSON.parse(boardData);
-                    // Convert date strings back to Date objects
-                    board.createdAt = new Date(board.createdAt);
-                    board.lastModified = new Date(board.lastModified);
-                    board.columns.forEach(column => {
-                        column.cards.forEach(card => {
-                            card.createdAt = new Date(card.createdAt);
-                            card.lastModified = new Date(card.lastModified);
-                            if (card.dueDate) {
-                                card.dueDate = new Date(card.dueDate);
-                            }
-                        });
-                    });
-                    boards.push(board);
-                }
-                catch (error) {
-                    this.logger.warn(`Failed to load board file ${file}: ${error}`);
-                }
-            }
+            const boards = await this.fileStorage.listBoards();
             return boards.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
         }
         catch (error) {
@@ -267,17 +221,14 @@ For more information, visit: https://github.com/your-repo/kanri-for-vscode
         if (this.loadedBoards.has(boardId)) {
             return this.loadedBoards.get(boardId);
         }
-        // Load from file system
+        // Load from file system using FileStorage
         try {
-            const filePath = this.getBoardFilePath(boardId);
-            const boardData = await fs.readFile(filePath, 'utf8');
-            const board = JSON.parse(boardData);
-            // Convert date strings back to Date objects
-            board.createdAt = new Date(board.createdAt);
-            board.lastModified = new Date(board.lastModified);
-            // Cache the loaded board
-            this.loadedBoards.set(boardId, board);
-            return board;
+            const board = await this.fileStorage.loadBoard(boardId);
+            if (board) {
+                // Cache the loaded board
+                this.loadedBoards.set(boardId, board);
+            }
+            return board || undefined;
         }
         catch (error) {
             this.logger.warn(`Failed to load board ${boardId}: ${error}`);
@@ -388,10 +339,8 @@ For more information, visit: https://github.com/your-repo/kanri-for-vscode
      */
     async writeBoardToFile(board) {
         try {
-            const filePath = this.getBoardFilePath(board.id);
-            const boardData = JSON.stringify(board, null, 2);
-            await fs.writeFile(filePath, boardData, 'utf8');
-            this.logger.debug(`Saved board ${board.name} to ${filePath}`);
+            await this.fileStorage.saveBoard(board);
+            this.logger.debug(`Saved board ${board.name}`);
         }
         catch (error) {
             this.logger.error(`Failed to save board ${board.name}: ${error}`);

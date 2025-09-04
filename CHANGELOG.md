@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2025-09-03
+
+### Fixed
+
+- **Critical persistence issue**: Replaced workspaceState with file-based storage system
+- **Data reliability**: Board data now persists reliably across VS Code sessions and installations
+- **Project portability**: Kanban boards now travel with project files in .kanri directory
+
+### Added
+
+- **FileStorage class**: Comprehensive file-based storage using VS Code workspace.fs API
+- **Cross-platform compatibility**: Uses VS Code's workspace API for consistent file operations
+- **Version control friendly**: Board data stored as JSON files that can be committed to git
+- **Automatic backup**: FileStorage creates backups before destructive operations
+- **Storage README**: Automatically creates documentation in .kanri directory
+
+### Changed
+
+- **BoardManager integration**: Updated to use FileStorage instead of Node.js fs module
+- **Storage architecture**: Moved from workspace state to project-specific file storage
+- **Data persistence**: Board data now survives workspace changes and VS Code updates
+- **Storage location**: Boards saved in workspace/.kanri/ directory for organization
+
+### Technical Details
+
+- Implements VS Code workspace.fs API for cross-platform file operations
+- Creates .kanri directory in workspace root for organized board storage
+- Stores boards as human-readable JSON files for transparency and debugging
+- Provides automatic date object conversion for proper data hydration
+- Includes comprehensive error handling with logger integration
+
 ## [0.1.3] - 2025-09-03
 
 ### Fixed
