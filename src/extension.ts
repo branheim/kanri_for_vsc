@@ -12,6 +12,7 @@ import { BoardManager } from './managers/boardManager';
 import { KanbanBoard } from './config/defaults';
 import { ConfigurationManager } from './utils/configurationManager';
 import { createCardStorage, CardStorage, CreateCardOptions } from './storage/cardStorage';
+import { BoardsViewProvider } from './views/boardsViewProvider';
 
 // Global logger instance
 const logger = new Logger();
@@ -34,6 +35,20 @@ function getNonce() {
 export function activate(context: vscode.ExtensionContext) {
     console.log('Kanri for VS Code is now active!');
 
+    // Initialize managers for the view provider
+    const logger = new Logger();
+    const configManager = new ConfigurationManager();
+    const boardManager = new BoardManager(context, configManager, logger);
+
+    // Register the boards view provider for the sidebar
+    const boardsViewProvider = new BoardsViewProvider(boardManager);
+    vscode.window.registerTreeDataProvider('kanri.boardsView', boardsViewProvider);
+
+    // Register the refresh boards command
+    const refreshBoardsCommand = vscode.commands.registerCommand('kanri.refreshBoards', () => {
+        boardsViewProvider.refresh();
+    });
+
     // Register the create board command - now opens a visual board
     const createBoardCommand = vscode.commands.registerCommand('kanri.createBoard', async () => {
         try {
@@ -45,6 +60,8 @@ export function activate(context: vscode.ExtensionContext) {
             if (boardName) {
                 // Create and show the visual kanban board
                 createKanbanBoardWebview(context, boardName);
+                // Refresh the boards view to show the new board
+                boardsViewProvider.refresh();
             }
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to create board: ${error}`);
@@ -52,10 +69,39 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Register the open board command - shows existing board
-    const openBoardCommand = vscode.commands.registerCommand('kanri.openBoard', async () => {
+    const openBoardCommand = vscode.commands.registerCommand('kanri.openBoard', async (boardId?: string) => {
         try {
-            // For now, just create a sample board - later this will load saved boards
-            createKanbanBoardWebview(context, 'Sample Board');
+            if (boardId) {
+                // Open specific board by ID
+                const boards = await boardManager.getAllBoards();
+                const board = boards.find((b: KanbanBoard) => b.id === boardId);
+                if (board) {
+                    createKanbanBoardWebview(context, board.name);
+                } else {
+                    vscode.window.showErrorMessage(`Board not found: ${boardId}`);
+                }
+            } else {
+                // Show board picker
+                const boards = await boardManager.getAllBoards();
+                if (boards.length === 0) {
+                    vscode.window.showInformationMessage('No boards found. Create a new board first.');
+                    return;
+                }
+                
+                const boardItems = boards.map(board => ({
+                    label: board.name,
+                    description: `Board ID: ${board.id}`,
+                    board: board
+                }));
+                
+                const selected = await vscode.window.showQuickPick(boardItems, {
+                    placeHolder: 'Select a board to open'
+                });
+                
+                if (selected) {
+                    createKanbanBoardWebview(context, selected.board.name);
+                }
+            }
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to open board: ${error}`);
         }
@@ -63,6 +109,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Add commands to subscriptions for proper disposal
     context.subscriptions.push(
+        refreshBoardsCommand,
         createBoardCommand,
         openBoardCommand
     );

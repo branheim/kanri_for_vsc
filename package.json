@@ -47,23 +47,71 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "views": {
+      "kanri-explorer": [
+        {
+          "id": "kanri.boardsView",
+          "name": "Kanban Boards",
+          "when": "workspaceFolderCount != 0"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "kanri-explorer",
+          "title": "Kanri",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "kanri.createBoard",
         "title": "Create New Board",
-        "category": "Kanri"
+        "category": "Kanri",
+        "icon": "$(add)"
       },
       {
         "command": "kanri.openBoard",
         "title": "Open Board",
-        "category": "Kanri"
+        "category": "Kanri",
+        "icon": "$(open-preview)"
       },
       {
         "command": "kanri.addCard",
         "title": "Add Card",
-        "category": "Kanri"
+        "category": "Kanri",
+        "icon": "$(note)"
+      },
+      {
+        "command": "kanri.refreshBoards",
+        "title": "Refresh Boards",
+        "category": "Kanri",
+        "icon": "$(refresh)"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "kanri.createBoard",
+          "when": "view == kanri.boardsView",
+          "group": "navigation"
+        },
+        {
+          "command": "kanri.refreshBoards",
+          "when": "view == kanri.boardsView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "kanri.openBoard",
+          "when": "view == kanri.boardsView && viewItem == board",
+          "group": "inline"
+        }
+      ]
+    },
     "configuration": {
       "title": "Kanri",
       "properties": {

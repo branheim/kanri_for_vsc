@@ -12,6 +12,7 @@ const logger_1 = require("./utils/logger");
 const boardManager_1 = require("./managers/boardManager");
 const configurationManager_1 = require("./utils/configurationManager");
 const cardStorage_1 = require("./storage/cardStorage");
+const boardsViewProvider_1 = require("./views/boardsViewProvider");
 // Global logger instance
 const logger = new logger_1.Logger();
 /**
@@ -30,6 +31,17 @@ function getNonce() {
  */
 function activate(context) {
     console.log('Kanri for VS Code is now active!');
+    // Initialize managers for the view provider
+    const logger = new logger_1.Logger();
+    const configManager = new configurationManager_1.ConfigurationManager();
+    const boardManager = new boardManager_1.BoardManager(context, configManager, logger);
+    // Register the boards view provider for the sidebar
+    const boardsViewProvider = new boardsViewProvider_1.BoardsViewProvider(boardManager);
+    vscode.window.registerTreeDataProvider('kanri.boardsView', boardsViewProvider);
+    // Register the refresh boards command
+    const refreshBoardsCommand = vscode.commands.registerCommand('kanri.refreshBoards', () => {
+        boardsViewProvider.refresh();
+    });
     // Register the create board command - now opens a visual board
     const createBoardCommand = vscode.commands.registerCommand('kanri.createBoard', async () => {
         try {
@@ -40,6 +52,8 @@ function activate(context) {
             if (boardName) {
                 // Create and show the visual kanban board
                 createKanbanBoardWebview(context, boardName);
+                // Refresh the boards view to show the new board
+                boardsViewProvider.refresh();
             }
         }
         catch (error) {
@@ -47,17 +61,45 @@ function activate(context) {
         }
     });
     // Register the open board command - shows existing board
-    const openBoardCommand = vscode.commands.registerCommand('kanri.openBoard', async () => {
+    const openBoardCommand = vscode.commands.registerCommand('kanri.openBoard', async (boardId) => {
         try {
-            // For now, just create a sample board - later this will load saved boards
-            createKanbanBoardWebview(context, 'Sample Board');
+            if (boardId) {
+                // Open specific board by ID
+                const boards = await boardManager.getAllBoards();
+                const board = boards.find((b) => b.id === boardId);
+                if (board) {
+                    createKanbanBoardWebview(context, board.name);
+                }
+                else {
+                    vscode.window.showErrorMessage(`Board not found: ${boardId}`);
+                }
+            }
+            else {
+                // Show board picker
+                const boards = await boardManager.getAllBoards();
+                if (boards.length === 0) {
+                    vscode.window.showInformationMessage('No boards found. Create a new board first.');
+                    return;
+                }
+                const boardItems = boards.map(board => ({
+                    label: board.name,
+                    description: `Board ID: ${board.id}`,
+                    board: board
+                }));
+                const selected = await vscode.window.showQuickPick(boardItems, {
+                    placeHolder: 'Select a board to open'
+                });
+                if (selected) {
+                    createKanbanBoardWebview(context, selected.board.name);
+                }
+            }
         }
         catch (error) {
             vscode.window.showErrorMessage(`Failed to open board: ${error}`);
         }
     });
     // Add commands to subscriptions for proper disposal
-    context.subscriptions.push(createBoardCommand, openBoardCommand);
+    context.subscriptions.push(refreshBoardsCommand, createBoardCommand, openBoardCommand);
 }
 exports.activate = activate;
 /**

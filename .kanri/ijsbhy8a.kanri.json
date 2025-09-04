@@ -1,0 +1,25 @@
+{
+  "name": "Sample Board",
+  "description": "Kanban board for Sample Board",
+  "columns": [
+    {
+      "id": "ijsbhy8a-col-0",
+      "title": "To Do",
+      "cards": []
+    },
+    {
+      "id": "ijsbhy8a-col-1",
+      "title": "In Progress",
+      "cards": []
+    },
+    {
+      "id": "ijsbhy8a-col-2",
+      "title": "Done",
+      "cards": []
+    }
+  ],
+  "id": "ijsbhy8a",
+  "createdAt": "2025-09-04T00:14:49.438Z",
+  "lastModified": "2025-09-04T00:14:49.438Z",
+  "filePath": "/Users/brandon/Developer/Projects/visualstudiocode/vsc_plugins/kanri_for_vsc/.kanri/ijsbhy8a.kanri.json"
+}
