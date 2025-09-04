@@ -61,6 +61,12 @@ Visual Kanban boards for project management directly in Visual Studio Code. Crea
 
 ## Release Notes
 
+### 0.1.7
+Fixed activity bar icon visibility across all VS Code themes, removed all emojis from codebase for professional appearance
+
+### 0.1.6
+Complete kanban functionality with drag and drop positioning, board deletion, Microsoft compliance, marketplace preparation
+
 ### 0.1.0
 Initial release - Basic kanban board functionality, card management, column management, persistent storage, drag and drop interface
 
